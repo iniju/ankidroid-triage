@@ -1,0 +1,64 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!--
+  Copyright (c) 2010 Konstantinos Spyropoulos <inigo.aldana@gmail.com>
+ 
+  This file is part of ankidroid-triage
+ 
+  ankidroid-triage is free software: you can redistribute it and/or modify it under the terms of the
+  GNU General Public License as published by the Free Software Foundation, either version 3 of
+  the License, or (at your option) any later version.
+
+  ankidroid-triage is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along with ankidroid-triage.
+  If not, see http://www.gnu.org/licenses/.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+		<meta http-equiv="Content-Language" content="en-us" />
+		<title>AnkiDroid Triage - Admin operations</title>
+		<link rel="stylesheet" type="text/css" href="/css/main.css">
+	</head>
+	<body>
+		<div class="title_line">
+			<div class="title float_left">Admin operations</div>
+			<div class="float_right">
+				<a href="/report_crashes">Crashes Report</a>
+				&nbsp;
+				<a href="/report_bugs">Bugs Report</a>
+			</div>
+		</div>
+		<br/>
+		<br/>
+		<div class="above_table">
+			<div class="float_left">
+			{% if page|lt:last_page %}
+			<a href="/admin_ops{{ op_link }}?page={{ page|add:1 }}">Next {{ page_size }} (currently page {{ page }} of {{ last_page|add:1 }})</a>
+			{% endif %}
+			</div>
+			<div class="float_right">Total found: {{ total_results }}</div>
+		</div>
+
+		<table>
+			<thead>
+				<tr>
+					<th>{{ column_key }}</th>
+					<th>{{ column_value }}</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for key, value in values.items %}
+				<tr class="{% if forloop.counter|divisibleby:2 %}even{% else %}odd{% endif %}">
+					<td>{{ key }}</td>
+					<td>{{ value }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</body>
+</html>
+

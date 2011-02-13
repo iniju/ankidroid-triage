@@ -1,0 +1,94 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!--
+  Copyright (c) 2010 Konstantinos Spyropoulos <inigo.aldana@gmail.com>
+ 
+  This file is part of ankidroid-triage
+ 
+  ankidroid-triage is free software: you can redistribute it and/or modify it under the terms of the
+  GNU General Public License as published by the Free Software Foundation, either version 3 of
+  the License, or (at your option) any later version.
+
+  ankidroid-triage is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along with ankidroid-triage.
+  If not, see http://www.gnu.org/licenses/.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+		<meta http-equiv="Content-Language" content="en-us" />
+		<title>AnkiDroid Triage - Hospitalized crash reports</title>
+		<link rel="stylesheet" type="text/css" href="/css/main.css">
+	</head>
+	<body>
+		<div class="title_line">
+			<div class="title float_left"> Hospitalized crash reports</div>
+			<div class="float_right">
+				<a href="report_crashes">Crashes Report</a>
+				&nbsp;
+				<a href="/report_bugs">Bugs Report</a>
+			</div>
+		</div>
+		<br/>
+		<br/>
+		<br/>
+
+		<form name="fix_report" method="post" action="hospital">
+			<div class="above_table">
+				<div class="float_left">
+				{% if last_page|gt:0 %}
+					{% if page|gt:0 %}
+					<a href="hospital?page=0">&lt;&lt; First {{ page_size }}</a>
+					&nbsp;
+					<a href="hospital?page={{ page|sub:1 }}">&lt; Previous {{ page_size }}</a>
+					{% endif %}
+					{% if page|lt:last_page %}
+					<a href="hospital?page={{ page|add:1 }}">Next {{ page_size }} &gt;</a>
+					&nbsp;
+					<a href="hospital?page={{ last_page }}">Last {{ total_results|sub:1|mod:page_size|add:1 }} &gt;&gt;</a>
+					{% endif %}
+				{% endif %}
+				</div>
+				<div class="float_right">
+					Total found: {{ total_results }}
+					&nbsp;
+					<input type="submit" name="remove_processed" value="Remove fixed">
+				</div>
+			</div>
+			<br/>
+
+			<input type="hidden" id="crash_id_var" name="crash_id" value="">
+			<input type="hidden" name="page" value="{{ page }}">
+			<table>
+				<thead>
+					<tr>
+						<th>Crash Title</th>
+						<th>Body</th>
+						<th>Problem</th>
+						<th>Attempt fix</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for hr in hospitalized_list %}
+					<tr class="{% if forloop.counter|divisibleby:2 %}even{% else %}odd{% endif %}">
+						<td>{{ hr.crashId }}</td>
+						<td><div class="scrollable">{{ hr.crashBody|safe }}</div></td>
+						<td>{{ hr.diagnosis }}</td>
+						<td>
+							{% if hr.processed %}
+							<div class="fix_success">FIXED!</div>
+							{% else %}
+							<input type="submit" name="fix_report" value="Re-parse" onclick="document.getElementById('crash_id_var').value='{{ hr.key.id }}';">
+							{% endif %}
+						</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</form>
+	</body>
+</html>
+

@@ -1,0 +1,125 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!--
+  Copyright (c) 2010 Konstantinos Spyropoulos <inigo.aldana@gmail.com>
+ 
+  This file is part of ankidroid-triage
+ 
+  ankidroid-triage is free software: you can redistribute it and/or modify it under the terms of the
+  GNU General Public License as published by the Free Software Foundation, either version 3 of
+  the License, or (at your option) any later version.
+
+  ankidroid-triage is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along with ankidroid-triage.
+  If not, see http://www.gnu.org/licenses/.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+		<meta http-equiv="Content-Language" content="en-us" />
+		<title>AnkiDroid Triage - Crashes report</title>
+		<link rel="stylesheet" type="text/css" href="/css/main.css">
+	</head>
+	<body>
+		<div class="title_line">
+			<div class="title float_left">Crashes report</div>
+			<div class="float_right">
+				Crashes Report
+				&nbsp;
+			{% if filter_version %}
+				<a href="/report_bugs?filter_version={{ filter_version }}">Bugs Report</a>
+			{% else %}
+				<a href="/report_bugs">Bugs Report</a>
+			{% endif %}
+			</div>
+		</div>
+		<br/>
+		<br/>
+		<br>
+		{% if total_hospital|gt:0 %}
+		<div id="hospital">There {{ total_hospital|pluralize:"is,are" }} currently <b>{{ total_hospital }}</b> crash report{{ total_hospital|pluralize }} (<b>{{ sick_hospital }} awaiting treatment</b>) in <a href="/hospital">hospital</a></div>
+		<br>
+		{% endif %}
+
+		<form name="filter_parameters" method="get" action="report_crashes">
+			{% if bug_id %}
+			<input type="hidden" name="bug_id" value="{{ bug_id }}">
+			{% endif %}
+			<div id="query_settings">Filter on version
+				<select name="filter_version" onchange="document.filter_parameters.submit()">
+					{% for v in versions_list %}
+					<option value="{{ v }}"{% ifequal filter_version v %} selected="selected"{% endifequal %}>{{ v }}</option>
+					{% endfor %}
+				</select>
+			</div>
+		</form>
+		
+		<div class="above_table">
+			<div class="float_left">
+			{% if last_page|gt:0 %}
+				{% if page|gt:0 %}
+					{% if bug_id %}
+				<a href="/report_crashes?filter_version={{ filter_version }}&amp;bug_id={{ bug_id }}&page=0">&lt;&lt; First {{ page_size }}</a>
+				&nbsp;
+				<a href="/report_crashes?filter_version={{ filter_version }}&amp;bug_id={{ bug_id }}&page={{ page|sub:1 }}">&lt; Previous {{ page_size }}</a>
+					{% else %}
+				<a href="/report_crashes?filter_version={{ filter_version }}&amp;page=0">&lt;&lt; First {{ page_size }}</a>
+				&nbsp;
+				<a href="/report_crashes?filter_version={{ filter_version }}&amp;page={{ page|sub:1 }}">&lt; Previous {{ page_size }}</a>
+					{% endif %}
+				&nbsp;
+				{% endif %}
+				{% if page|lt:last_page %}
+					{% if bug_id %}
+				<a href="/report_crashes?filter_version={{ filter_version }}&amp;bug_id={{ bug_id }}&page={{ page|add:1 }}">Next {{ page_size }} &gt;</a>
+				&nbsp;
+				<a href="/report_crashes?filter_version={{ filter_version }}&amp;bug_id={{ bug_id }}&page={{ last_page }}">Last {{ total_results|sub:1|mod:page_size|add:1 }} &gt;&gt;</a>
+					{% else %}
+				<a href="/report_crashes?filter_version={{ filter_version }}&amp;page={{ page|add:1 }}">Next {{ page_size }} &gt;</a>
+				&nbsp;
+				<a href="/report_crashes?filter_version={{ filter_version }}&amp;page={{ last_page }}">Last {{ total_results|sub:1|mod:page_size|add:1 }} &gt;&gt;</a>
+					{% endif %}
+				{% endif %}
+			{% endif %}
+			</div>
+			<div class="float_right">Total found: {{ total_results }}</div>
+		</div>
+
+		<table>
+			<thead>
+				<tr>
+					<th>Crash Title</th>
+					<th title="Send Time">Crash Time</th>
+					<th title="Package Name">Version</th>
+					<th title="OS Id">Android</th>
+					<th>Brand</th>
+					<th>Model</th>
+					<th>Product</th>
+					<th>Device</th>
+					<th>Available Memory</th>
+					<th title="# of instances">Bug</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for cr in crashes_list %}
+				<tr class="{% if forloop.counter|divisibleby:2 %}even{% else %}odd{% endif %}">
+					<td><a href="/view_crash?crash_id={{ cr.key.id }}">{{ cr.crashId }}</a></td>
+					<td title="Send on {{ cr.sendTime|date:"Y-m-d H:i:s T" }}">{{ cr.crashTime|date:"Y-m-d H:i:s T" }}</td>
+					<td title="Package: {{ cr.packageName }}">{{ cr.versionName }}</td>
+					<td title="Firmware: {{ cr.androidOSId }}">{{ cr.androidOSVersion }}</td>
+					<td>{{ cr.brand }}</td>
+					<td>{{ cr.model }}</td>
+					<td>{{ cr.product }}</td>
+					<td>{{ cr.device }}</td>
+					<td>{{ cr.availableInternalMemory }}</td>
+					<td><a href="/view_bug?bug_id={{ cr.bugKey.key.id }}" title="count = {{ cr.bugKey.count }}">{{ cr.bugKey.key.id }}</a></td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</body>
+</html>
+

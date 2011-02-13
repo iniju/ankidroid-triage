@@ -1,0 +1,102 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!--
+  Copyright (c) 2010 Konstantinos Spyropoulos <inigo.aldana@gmail.com>
+ 
+  This file is part of ankidroid-triage
+ 
+  ankidroid-triage is free software: you can redistribute it and/or modify it under the terms of the
+  GNU General Public License as published by the Free Software Foundation, either version 3 of
+  the License, or (at your option) any later version.
+
+  ankidroid-triage is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along with ankidroid-triage.
+  If not, see http://www.gnu.org/licenses/.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+		<meta http-equiv="Content-Language" content="en-us" />
+		<title>AnkiDroid Triage - Bugs report</title>
+		<link rel="stylesheet" type="text/css" href="/css/main.css">
+	</head>
+	<body>
+		<div class="title_line">
+			<div class="title float_left">Bugs report</div>
+			<div class="float_right">
+			{% if filter_version %}
+				<a href="/report_crashes?filter_version={{ filter_version }}">Crashes Report</a>
+			{% else %}
+				<a href="/report_crashes">Crashes Report</a>
+			{% endif %}
+				&nbsp;
+				Bugs Report
+				&nbsp;
+			{% if filter_version %}
+				<a href="/export_bug_csv?filter_version={{ filter_version }}">Export to CSV</a>
+			{% else %}
+				<a href="/export_bug_csv">Export to CSV</a>
+			{% endif %}
+			</div>
+		</div>
+		<br/>
+		<br/>
+		<form name="filter_parameters" method="get" action="report_bugs">
+			<div id="query_settings">Filter on version
+				<select name="filter_version" onchange="document.filter_parameters.submit()">
+					{% for v in versions_list %}
+					<option value="{{ v }}"{% ifequal filter_version v %} selected="selected"{% endifequal %}>{{ v }}</option>
+					{% endfor %}
+				</select>
+			</div>
+		</form>
+
+		<div class="above_table">
+			<div class="float_left">
+			{% if last_page|gt:0 %}
+				{% if page|gt:0 %}
+				<a href="/report_bugs?filter_version={{ filter_version }}&amp;page=0">&lt;&lt; First {{ page_size }}</a>
+				&nbsp;
+				<a href="/report_bugs?filter_version={{ filter_version }}&amp;page={{ page|sub:1 }}">&lt; Previous {{ page_size }}</a>
+				&nbsp;
+				{% endif %}
+				{% if page|lt:last_page %}
+				<a href="/report_bugs?filter_version={{ filter_version }}&amp;page={{ page|add:1 }}">Next {{ page_size }} &gt;</a>
+				&nbsp;
+				<a href="/report_bugs?filter_version={{ filter_version }}&amp;page={{ last_page }}">Last {{ total_results|sub:1|mod:page_size|add:1 }} &gt;&gt;</a>
+				{% endif %}
+			{% endif %}
+			</div>
+			<div class="float_right">Total found: {{ total_results }}</div>
+		</div>
+
+		<table>
+			<thead>
+				<tr>
+					<th>BugID</th>
+					<th>Signature</th>
+					<th>Last Incident</th>
+					<th>Count</th>
+					<th>Issue#</th>
+					<th>Status</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for bg in bugs_list %}
+				<tr class="{% if forloop.counter|divisibleby:2 %}even{% else %}odd{% endif %}">
+					<td><a href="/view_bug?bug_id={{ bg.key.id }}">{{ bg.key.id }}</a></td>
+					<td>{{ bg.signature }}</td>
+					<td>{{ bg.lastIncident|date:"Y-m-d H:i:s T" }}</td>
+					<td><a href="/report_crashes?bug_id={{ bg.key.id }}">{{ bg.count }}</a></td>
+					<td>{% if bg.issueName %}<a href="http://code.google.com/p/ankidroid/issues/detail?id={{ bg.issueName }}">{{ bg.issueName }}{% if not bg.linked %} *{% endif %}</a>{% endif %}</td>
+					<td>{{ bg.status }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</body>
+</html>
+

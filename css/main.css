@@ -1,0 +1,95 @@
+body {
+	font-size: 12px;
+}
+
+input {
+	font-size: 12px;
+}
+
+table {
+	border:1px solid #c5d5e5;
+	border-collapse: collapse;
+	width: 100%;
+}
+
+thead, th {
+	background: none repeat scroll 0 0 #c5d5e5;
+	font-weight: bold;
+}
+
+tr {
+	text-align: left;
+	vertical-align: top;
+	border: 1px solid #b0b0e0;
+}
+
+
+th, td {
+	margin: 0;
+	padding: 0.35em 1em 0.25em 0.35em;
+	border: 1px solid #b0b0e0;
+}
+
+th.field_name {
+	width="10%";
+}
+
+tr.odd, td.odd {
+	background: none repeat scroll 0 0 #ffffff;
+}
+
+tr.even, td.even {
+	background: none repeat scroll 0 0 #e9e9e9;
+}
+
+div.title_line {
+	width: 100%;
+	vertical-align: top;
+}
+
+div.title {
+	font-size: 1.5em;
+	font-weight: bold;
+}
+
+div.above_table {
+	width: 100%;
+}
+
+div.float_left {
+	text-align: left;
+	float: left;
+	width: 50%;
+}
+
+div.float_right {
+	text-align: right;
+	float: right;
+	width: 50%;
+}
+
+div.scrollable {
+	height: 300px;
+	overflow: auto;
+}
+
+span.scanned {
+	color: #aaaa00;
+}
+
+span.confirmed {
+	color: #00aa00;
+}
+
+div.fix_failure {
+	color: #aa0000;
+	width: 100%;
+	text-align: center;
+}
+
+div.fix_success {
+	color: #00aa00;
+	width: 100%;
+	text-align: center;
+}
+

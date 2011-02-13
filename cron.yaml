@@ -1,0 +1,7 @@
+cron:
+- description: update of statuses and priorities
+  url: /cron_updater/status_priority
+  schedule: every 36 minutes synchronized
+- description: autoscanning for issues
+  url: /cron_updater/issue_scanner
+  schedule: every 32 minutes synchronized

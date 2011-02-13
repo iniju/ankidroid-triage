@@ -1,0 +1,39 @@
+application: ankidroid-triage
+version: 1
+runtime: python
+api_version: 1
+
+handlers:
+- url: /favicon.ico
+  static_files: media/img/favicon.ico
+  upload: media/img/favicon.ico
+
+- url: /robots.txt
+  static_files: robots.txt
+  upload: robots.txt
+
+- url: /css
+  static_dir: css
+
+- url: /_ah/mail/ankidroid_crash_reports@ankidroid-triage\.appspotmail\.com.*
+  script: receive_ankicrashes.py
+  login: admin
+
+- url: /admin_.*
+  script: admin_ops.py
+  login: admin
+
+- url: /cron_updater.*
+  script: cron_updater.py
+  login: admin
+
+- url: /.*
+  script: report_ankicrashes.py
+
+
+inbound_services:
+- mail
+
+builtins:
+- datastore_admin: on
+

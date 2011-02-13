@@ -1,0 +1,73 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!--
+  Copyright (c) 2010 Konstantinos Spyropoulos <inigo.aldana@gmail.com>
+ 
+  This file is part of ankidroid-triage
+ 
+  ankidroid-triage is free software: you can redistribute it and/or modify it under the terms of the
+  GNU General Public License as published by the Free Software Foundation, either version 3 of
+  the License, or (at your option) any later version.
+
+  ankidroid-triage is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along with ankidroid-triage.
+  If not, see http://www.gnu.org/licenses/.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+		<meta http-equiv="Content-Language" content="en-us" />
+		<title>AnkiDroid Triage - Crash view</title>
+		<link rel="stylesheet" type="text/css" href="/css/main.css">
+	</head>
+	<body>
+		<div class="title_line">
+			<div class="title float_left">Crash view</div>
+			<div class="float_right">
+				<a href="/report_crashes">Crashes Report</a>
+				&nbsp;
+				<a href="/report_bugs">Bugs Report</a>
+			</div>
+		</div>
+		<br/>
+		<br/>
+		<div class="above_table">
+		</div>
+
+		{% if cr %}
+		<table>
+			<thead>
+				<tr>
+					<th class="field_name">Field Name</th>
+					<th>Value</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr><th class="field_name">ID</th><td>{{ cr.key.id }}</td></tr>
+				<tr><th class="field_name">Subject</th><td>{{ cr.crashId }}</td></tr>
+				<tr><th class="field_name">Report</th><td><div class="scrollable">{{ cr.report|safe }}</div></td></tr>
+				<tr><th class="field_name">Package Name</th><td>{{ cr.packageName }}</td></tr>
+				<tr><th class="field_name">Package Version</th><td>{{ cr.versionName }}</td></tr>
+				<tr><th class="field_name">Signature</th><td>{{ cr.crashSignature }}</td></tr>
+				<tr><th class="field_name">Crash Time</th><td>{{ cr.crashTime|date:"Y-m-d H:i:s T" }}</td></tr>
+				<tr><th class="field_name">Send Time</th><td>{{ cr.sendTime|date:"Y-m-d H:i:s T" }}</td></tr>
+				<tr><th class="field_name">Brand</th><td>{{ cr.brand }}</td></tr>
+				<tr><th class="field_name">Model</th><td>{{ cr.model }}</td></tr>
+				<tr><th class="field_name">Product</th><td>{{ cr.product }}</td></tr>
+				<tr><th class="field_name">Device</th><td>{{ cr.device }}</td></tr>
+				<tr><th class="field_name">Android Firmware</th><td>{{ cr.androidOSId }}</td></tr>
+				<tr><th class="field_name">Android Version</th><td>{{ cr.androidOSVersion }}</td></tr>
+				<tr><th class="field_name">Available Memory</th><td>{{ cr.availableInternalMemory }}</td></tr>
+				<tr><th class="field_name">Tags</th><td>{{ cr.tags }}</td></tr>
+				<tr><th>Linked to Bug</th><td><a href="/view_bug?bug_id={{ cr.bugKey.key.id }}">{{ cr.bugKey.key.id }}</a></td></tr>
+			</tbody>
+		</table>
+		{% else %}
+		Crash report not found!
+		{% endif %}
+	</body>
+</html>
+

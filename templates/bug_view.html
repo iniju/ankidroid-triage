@@ -1,0 +1,97 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!--
+  Copyright (c) 2010 Konstantinos Spyropoulos <inigo.aldana@gmail.com>
+ 
+  This file is part of ankidroid-triage
+ 
+  ankidroid-triage is free software: you can redistribute it and/or modify it under the terms of the
+  GNU General Public License as published by the Free Software Foundation, either version 3 of
+  the License, or (at your option) any later version.
+
+  ankidroid-triage is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along with ankidroid-triage.
+  If not, see http://www.gnu.org/licenses/.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+		<meta http-equiv="Content-Language" content="en-us" />
+		<title>AnkiDroid Triage - Bug view</title>
+		<link rel="stylesheet" type="text/css" href="/css/main.css">
+	</head>
+	<body>
+		<div class="title_line">
+			<div class="title float_left">Bug view</div>
+			<div class="float_right">
+				<a href="/report_crashes">Crashes Report</a>
+				&nbsp;
+				<a href="/report_bugs">Bugs Report</a>
+				&nbsp;
+				<a href="/export_bug_csv?bug_id={{ bg.key.id }}">Export to CSV</a>
+			</div>
+		</div>
+		<br/>
+		<br/>
+		<div class="above_table">
+			Click here to scan existing issues for matching signature and link this bug<br/>
+			<form name="issue_autolink" method="post" action="/view_bug">
+				<input type="hidden" name="bug_id" value="{{ bg.key.id }}" />
+				{% if bg.issueName %}
+					{% if bg.linked %}
+				<span class="confirmed">Scanned and confirmed:</span>
+					{% else %}
+				<span class="scanned">Scanned but not confirmed:</span>
+					{% endif %}
+				{% endif %}
+				{% if single_result %}
+				<input type="text" id="issue_input" size="5" name="issue" value="{{ bg.issueName|default_if_none:single_result }}" />
+				{% else %}
+				<input type="text" id="issue_input" size="5" name="issue" value="{{ bg.issueName|default_if_none:"" }}" />
+				{% endif %}
+				{% if issues %}
+				<select name="issue_list" onchange="document.getElementById('issue_input').value = this.options[this.selectedIndex].value;">
+					{% for iss in issues %}
+					<option value="{{ iss.id }}">{{ iss.id }} ({{ iss.status }}) {{ iss.priority }}</option>
+					{% endfor %}
+				</select>
+				{% endif %}
+
+				<input type="submit" name="save_issue" value="Confirm issue #" />
+				<input type="submit" name="find_issue" value="Find matching issue" />
+			</form>
+		</div>
+
+		{% if bg %}
+		<table>
+			<thead>
+				<tr>
+					<th class="field_name">Field Name</th>
+					<th>Value</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr><th class="field_name">ID</th><td>{{ bg.key.id }}</td></tr>
+				<tr><th class="field_name">Signature</th><td>{{ bg.signature }}</td></tr>
+				<tr><th class="field_name">Last Incident</th><td>{{ bg.lastIncident|date:"Y-m-d H:i:s T" }}</td></tr>
+				<tr>
+					<th class="field_name">Count</th>
+					<td><a href="/report_crashes?bug_id={{ bg.key.id }}">{{ bg.count }}</a></td>
+				</tr>
+				<tr>
+					<th class="field_name">Linked Issue</th>
+					<td>{% if bg.issueName %}<a href="http://code.google.com/p/ankidroid/issues/detail?id={{ bg.issueName }}">{{ bg.issueName }}</a>{% endif %}</td>
+				</tr>
+				<tr><th class="field_name">Status</th><td>{{ bg.status }}</td></tr>
+				<tr><th class="field_name">Priority</th><td>{{ bg.priority }}</td></tr>
+			</tbody>
+		</table>
+		{% else %}
+		Bug not found!
+		{% endif %}
+	</body>
+</html>
+
