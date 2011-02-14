@@ -119,19 +119,20 @@ class RebuildVersions(webapp.RequestHandler):
 				logging.info("missing version: " + vname)
 
 		template_values = {
-				'tags': versionCounts,
+				'values': versionCounts,
 				'page': page,
 				'last_page': last_page,
 				'page_size': batch,
 				'op_link': 'rebuild_versions',
 				'column_key': 'Version',
 				'column_value': 'Count',
-				'total_results': len(crashes)}
+				'page_results': len(crashes),
+				'total_results': total_results}
 		path = os.path.join(os.path.dirname(__file__), 'templates/admin_ops.html')
 		self.response.out.write(template.render(path, template_values))
 
 class RebuildBugs(webapp.RequestHandler):
-	batch_size = 400
+	batch_size = 250
 	def get(self):
 		batch = RebuildBugs.batch_size
 		crashes_query = CrashReport.all()
@@ -155,15 +156,16 @@ class RebuildBugs(webapp.RequestHandler):
 		# Main ops loop
 		for cr in crashes:
 			cr.bugKey = None
+			cr.report = re.sub(r'&#0?9;', ' ', cr.report)
 			cr.crashSignature = CrashReport.getCrashSignature(cr.report)
 			cr.put()
-			if !cr.crashSignature:
+			if cr.crashSignature == '\n':
 				logging.warning("Can't get signature for CrashReport: " + str(cr.key().id()))
 				valueSet["unlinked"] = valueSet["unlinked"] + 1
 			else:
 				cr.signHash = hashlib.sha256(cr.crashSignature).hexdigest()
 				cr.linkToBug()
-				bugId = str(cr.bugKey().id())
+				bugId = str(cr.bugKey.key().id())
 				if bugId in valueSet:
 					valueSet[bugId] = valueSet[bugId] + 1
 				else:
@@ -176,14 +178,15 @@ class RebuildBugs(webapp.RequestHandler):
 				'op_link': 'rebuild_bugs',
 				'column_key': 'BugId',
 				'column_value': 'Count',
-				'total_results': len(crashes)}
+				'page_results': len(crashes),
+				'total_results': total_results}
 		path = os.path.join(os.path.dirname(__file__), 'templates/admin_ops.html')
 		self.response.out.write(template.render(path, template_values))
 
 application = webapp.WSGIApplication(
 		[(r'^/admin_show.*$', ShowCrashBody),
 		(r'^/admin_ops/rebuild_versions$', RebuildVersions),
-		(r'^/admin_ops/rescan_issues$', RescanIssues),
+		#(r'^/admin_ops/rescan_issues$', RescanIssues),
 		(r'^/admin_ops/rebuild_bugs$', RebuildBugs)],
 		debug=True)
 

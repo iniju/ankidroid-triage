@@ -37,10 +37,10 @@
 		<div class="above_table">
 			<div class="float_left">
 			{% if page|lt:last_page %}
-			<a href="/admin_ops{{ op_link }}?page={{ page|add:1 }}">Next {{ page_size }} (currently page {{ page }} of {{ last_page|add:1 }})</a>
+			<a href="/admin_ops/{{ op_link }}?page={{ page|add:1 }}">Next {{ page_size }} (currently page {{ page }} of {{ last_page|add:1 }})</a>
 			{% endif %}
 			</div>
-			<div class="float_right">Total found: {{ total_results }}</div>
+			<div class="float_right">Entities processed in this batch: {{ page_results }}/{{ total_results }}</div>
 		</div>
 
 		<table>

@@ -266,12 +266,12 @@ class CrashReport(db.Model):
 		signLine2 = ''
 		m1 = re.search(r"Begin Stacktrace\s*(<br>\s*)*([^<\s][^<]*[^<\s])\s*<br>", body, re.M|re.U)
 		if m1:
-		#	signLine1 = re.sub(r"\$[a-fA-F0-9@]*", "", m1.group(2))
-			signLine1 = m1.group(2)
+			signLine1 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m1.group(2))
+			#signLine1 = m1.group(2)
 		m2 = re.search(r"<br>\s*(at\scom\.(ichi2|mindprod|samskivert|tomgibara)\.[^<]*[^<\s])\s*<br>", body, re.M|re.U)
 		if m2:
-		#	signLine2 = re.sub(r"\$[a-fA-F0-9@]*", "", m2.group(1))
-			signLine2 = m2.group(1)
+			signLine2 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m2.group(1))
+			#signLine2 = m2.group(1)
 		return signLine1 + "\n" + signLine2
 	#m = re.search(r".*<br>\s*(.*?com\.ichi2\.anki\..*?)<br>", body, re.M|re.U)
 		#if m and m.groups():
