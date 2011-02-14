@@ -156,7 +156,6 @@ class RebuildBugs(webapp.RequestHandler):
 		# Main ops loop
 		for cr in crashes:
 			cr.bugKey = None
-			cr.report = re.sub(r'&#0?9;', ' ', cr.report)
 			cr.crashSignature = CrashReport.getCrashSignature(cr.report)
 			cr.put()
 			if cr.crashSignature == '\n':
