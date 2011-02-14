@@ -32,15 +32,12 @@ class ScanIssues(webapp.RequestHandler):
 	settings_name = 'issueScanner'
 	default_step = 10
 	def get(self):
-		cronSettings_query = CronjobSettings.all()
-		cronSettings_query.filter('name=', ScanIssues.settings_name)
-		cs = None
-		if cronSettings_query.count(1) == 0:
+		cs_query = db.GqlQuery("SELECT * FROM CronjobSettings WHERE name = :1 LIMIT 1", ScanIssues.settings_name)
+		cs = cs_query.get()
+		if cs == None:
 			logging.info('initializing scanner for issues')
 			cs = CronjobSettings(name = ScanIssues.settings_name, step = ScanIssues.default_step, offset = 0)
 			cs.put()
-		else:
-			cs = cronSettings_query.fetch(1)[0]
 
 		bugs_query = Bug.all()
 		bugs_query.filter('linked =', False)
@@ -57,19 +54,16 @@ class ScanIssues(webapp.RequestHandler):
 		cs.offset += cs.step
 		cs.put()
 
-class UpdateStatusesPriorities(webapp.RequestHandler):
+class ScanStatus(webapp.RequestHandler):
 	settings_name = 'statusScanner'
 	default_step = 10
 	def get(self):
-		cronSettings_query = CronjobSettings.all()
-		cronSettings_query.filter('name=', UpdateStatusesPriorities.settings_name)
-		cs = None
-		if cronSettings_query.count(1) == 0:
+		cs_query = db.GqlQuery("SELECT * FROM CronjobSettings WHERE name = :1 LIMIT 1", ScanStatus.settings_name)
+		cs = cs_query.get()
+		if cs == None:
 			logging.info('initializing scanner for status')
-			cs = CronjobSettings(name = UpdateStatusesPriorities.settings_name, step = UpdateStatusesPriorities.default_step, offset = 0)
+			cs = CronjobSettings(name = ScanStatus.settings_name, step = ScanStatus.default_step, offset = 0)
 			cs.put()
-		else:
-			cs = cronSettings_query.fetch(1)[0]
 
 		bugs_query = Bug.all()
 		bugs_query.filter('linked =', True)
@@ -86,7 +80,7 @@ class UpdateStatusesPriorities(webapp.RequestHandler):
 		cs.put()
 		
 application = webapp.WSGIApplication(
-		[(r'^/cron_updater/status_priority?.*', UpdateStatusesPriorities),
+		[(r'^/cron_updater/status_priority?.*', ScanStatus),
 		(r'^/cron_updater/issue_scanner?.*', ScanIssues)],
 		debug=True)
 
