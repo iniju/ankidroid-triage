@@ -70,6 +70,7 @@ class HospitalizedReport(db.Model):
 
 class Bug(db.Model):
 	issueStatusOrder = {
+			'WaitingForFeedback': 0,
 			'Started': 0,
 			'Accepted': 0,
 			'New': 0,
@@ -126,6 +127,7 @@ class Bug(db.Model):
 	def findIssue(self):
 		# format signature for google query
 		urlEncodedSignature = re.sub(r'([:=])(\S)', r'\1 \2', self.signature)
+		urlEncodedSignature = re.sub(r'\$[0-9]+', r'$', urlEncodedSignature)
 		urlEncodedSignature = quote_plus(urlEncodedSignature)
 		logging.debug("findIssue: URL-Encoded: '" + urlEncodedSignature + "'")
 		url = r"http://code.google.com/p/ankidroid/issues/list?can=1&q=" + urlEncodedSignature + r"&colspec=ID+Status+Priority"
