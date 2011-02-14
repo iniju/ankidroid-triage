@@ -363,7 +363,6 @@ class LogSenderHandler(InboundMailHandler):
 		if not body:
 			try:
 				body = mail_message.bodies('text/plain').next()[1]
-				logging.warning("Message encoding: " + body.encoding + " type: " + str(type(body)) + " type: " + str(type(body.payload)))
 				if body.encoding == '8bit':
 					body = body.payload
 					logging.warning("Un-decoded body: '" + body + "'")
