@@ -27,6 +27,9 @@ handlers:
   script: cron_updater.py
   login: admin
 
+- url: /crash_receiver.*
+  script: receive_ankicrashes.py
+
 - url: /.*
   script: report_ankicrashes.py
 

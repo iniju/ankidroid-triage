@@ -413,8 +413,16 @@ class LogSenderHandler(InboundMailHandler):
 				dupl = dupl_query.fetch(1)[0]
 				logging.warning("Found duplicate with id: " + str(dupl.key().id()))
 
+class HttpReceiver(webapp.RequestHandler):
+	def post(self):
+		post_args = self.request.arguments()
+		for name in post_args:
+			logging.debug("http receiver, " + name + ": " + self.request.get(name, 0))
+		self.response.out.write("OK got it!")
+		
 def main():
-	application = webapp.WSGIApplication([LogSenderHandler.mapping()], debug=True)
+	application = webapp.WSGIApplication([LogSenderHandler.mapping(),
+		(r'^/crash_receiver/?.*', HttpReceiver)], debug=True)
 	run_wsgi_app(application)
 
 if __name__ == '__main__':
