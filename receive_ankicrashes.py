@@ -18,6 +18,7 @@
 
 import logging, email, re, hashlib
 from datetime import datetime
+from datetime import timedelta
 from cgi import escape
 from string import strip
 from urllib import quote
@@ -413,16 +414,55 @@ class LogSenderHandler(InboundMailHandler):
 				dupl = dupl_query.fetch(1)[0]
 				logging.warning("Found duplicate with id: " + str(dupl.key().id()))
 
-class HttpReceiver(webapp.RequestHandler):
+class Feedback(db.Model):
+	groupId = db.IntegerProperty(required=True)
+	sendTime = db.DateTimeProperty(required=True)
+	timezone = db.StringProperty()
+	type = db.StringProperty()
+	message = db.StringProperty()
+
+class HttpFeedbackReceiver(webapp.RequestHandler):
+	def parseDateTime(self, dtstr):
+		dt = dtstr.split('.')
+		ts = datetime.strptime(dt[0], r'%Y-%m-%dT%H:%M:%S')
+		micros = dt[1][:6]
+		logging.info("micros: '%s'", micros)
+		ts = ts + timedelta(microseconds = long(micros + "000000"[len(micros):]))
+		logging.info("micros: %d", ts.microsecond)
+		return pytz.utc.localize(ts)
+	def post(self):
+		post_args = self.request.arguments()
+		sentOn = None
+		_type = self.request.get('type', '')
+
+		for name in post_args:
+			logging.debug("http crash receiver, " + name + ": " + self.request.get(name, 0))
+		if _type in ['feedback', 'error-feedback']:
+			if 'reportsentutc' in post_args:
+				sentOn = self.parseDateTime(self.request.get('reportsentutc', ''))
+			_groupId = long(self.request.get('groupid', '0'))
+			if _groupId and sentOn:
+				fb = Feedback(groupId = _groupId,
+						sendTime = sentOn,
+						timezone = self.request.get('reportsenttz', ''),
+						type = _type,
+						message = self.request.get('message', '0'))
+				fb.put()
+				self.response.out.write("OK")
+			else:
+				self.error(400)
+
+class HttpCrashReceiver(webapp.RequestHandler):
 	def post(self):
 		post_args = self.request.arguments()
 		for name in post_args:
-			logging.debug("http receiver, " + name + ": " + self.request.get(name, 0))
+			logging.debug("http crash receiver, " + name + ": " + self.request.get(name, 0))
 		self.response.out.write("OK got it!")
-		
+
 def main():
 	application = webapp.WSGIApplication([LogSenderHandler.mapping(),
-		(r'^/crash_receiver/?.*', HttpReceiver)], debug=True)
+		(r'^/crash_receiver/?.*', HttpCrashReceiver),
+		(r'^/feedback_receiver/?.*', HttpFeedbackReceiver)], debug=True)
 	run_wsgi_app(application)
 
 if __name__ == '__main__':
