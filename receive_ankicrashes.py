@@ -63,7 +63,6 @@ class AppVersion(db.Model):
 			nv.put()
 
 class HospitalizedReport(db.Model):
-	email = db.StringProperty(required=True)
 	crashId = db.StringProperty(required=True)
 	crashBody = db.TextProperty(required=True)
 	diagnosis = db.StringProperty()
@@ -152,7 +151,6 @@ class Bug(db.Model):
 			return []
 
 class CrashReport(db.Model):
-	email = db.EmailProperty(required=True)
 	crashId = db.StringProperty(required=True)
 	report = db.TextProperty(required=True)
 	packageName = db.StringProperty()
@@ -160,18 +158,24 @@ class CrashReport(db.Model):
 	crashSignature = db.TextProperty()
 	signHash = db.StringProperty()
 	crashTime = db.DateTimeProperty()
+	crashTz = db.StringProperty()
 	sendTime = db.DateTimeProperty()
+	board = db.StringProperty()
 	brand = db.StringProperty()
 	model = db.StringProperty()
 	product = db.StringProperty()
 	device = db.StringProperty()
+	display = db.StringProperty()
 	androidOSId = db.StringProperty()
 	androidOSVersion = db.StringProperty()
 	availableInternalMemory = db.IntegerProperty()
-	tags = db.StringProperty()
+	totalInternalMemory = db.IntegerProperty()
 	bugKey = db.ReferenceProperty(Bug)
-	entityVersion = db.IntegerProperty(default=1)
+	entityVersion = db.IntegerProperty(default=2)
 	adminOpsflag = db.IntegerProperty(default=0)
+	groupId = db.StringProperty(default='')
+	index = db.IntegerProperty(default=0)
+	source = db.StringProperty(default='email')
 	def linkToBug(self):
 		results = db.GqlQuery("SELECT * FROM Bug WHERE signHash = :1", self.signHash)
 		bug = results.get()
@@ -255,14 +259,14 @@ class CrashReport(db.Model):
 				tz = timezone(newtzname)
 			except UnknownTimeZoneError:
 				logging.warning("Unknown timezone: '" + tzname + "'")
-				return (None, "timezone_unknown")
+				return (None, "timezone_unknown", "")
 		try:
 			tm = tz.localize(tm)
 		except (ValueError, NonExistentTimeError):
 			logging.warning("Error while localizing datetime '" + tm.strftime(r"%d/%m/%Y %H:%M:%S") + "' to '" + tz.zone + "'")
-			return (None, "localizing_failed")
+			return (None, "localizing_failed", "")
 		logging.debug("UTC time parsed: '" + tm.astimezone(pytz.utc).strftime(r"%d/%m/%Y %H:%M:%S %Z") + "'")
-		return (tm.astimezone(pytz.utc), "")
+		return (tm.astimezone(pytz.utc), "", tzname)
 	@classmethod
 	def getCrashSignature(cls, body):
 		signLine1 = ''
@@ -295,21 +299,21 @@ class CrashReport(db.Model):
 		m = re.search("(\[[^\]]*\])?\s*Bug Report on (.*)$", subject)
 		if (m is None) or m.groups() is None:
 			logging.warning("Hospitalizing message: Unknown subject (" + subject + ")")
-			return (None, None, "", "unknown_subject")
-		(send_ts, hospital_reason) = cls.parseUTCDateTime(m.group(2))
+			return (None, None, "", "", "unknown_subject")
+		(send_ts, hospital_reason, tzname) = cls.parseUTCDateTime(m.group(2))
 		if hospital_reason:
 			logging.warning("Hospitalizing message: Failed in parsing send time")
-			return (None, None, "", "send_ts_" + hospital_reason)
+			return (None, None, "", "", "send_ts_" + hospital_reason)
 		else:
 			logging.debug("Received on: " + send_ts.strftime(r"%d/%m/%Y %H:%M:%S %Z"))
 		crash_str = cls.parseSimpleValue(body, "Report Generated", ": ")
 		if not crash_str:
 			logging.warning("Hospitalizing message: Missing generated time line in body")
-			return (None, None, "", "crash_time_missing")
-		(crash_ts, hospital_reason) = cls.parseUTCDateTime(crash_str)
+			return (None, None, "", "", "crash_time_missing")
+		(crash_ts, hospital_reason, tzname) = cls.parseUTCDateTime(crash_str)
 		if hospital_reason:
 			logging.warning("Hospitalizing message: Failed in parsing crash time")
-			return (None, None, "", "crash_ts_" + hospital_reason)
+			return (None, None, "", "", "crash_ts_" + hospital_reason)
 		else:
 			logging.debug("Crashed on: " + crash_ts.strftime(r"%d/%m/%Y %H:%M:%S %Z"))
 		signature = cls.getCrashSignature(body)
@@ -317,10 +321,10 @@ class CrashReport(db.Model):
 			logging.debug("Signature: '" + signature + "'")
 		else:
 			logging.warning("Hospitalizing message: No signature found")
-			return (None, None, "", "no_signature")
-		return (send_ts, crash_ts, signature, "")
+			return (None, None, "", "", "no_signature")
+		return (send_ts, crash_ts, signature, tzname, "")
 	def parseReport(self):
-		(send_ts, crash_ts, signature, hospital_reason) = CrashReport.getMessageEssentials(self.crashId, self.report)
+		(send_ts, crash_ts, signature, tzname, hospital_reason) = CrashReport.getMessageEssentials(self.crashId, self.report)
 		if hospital_reason:
 			return hospital_reason
 		self.packageName = self.parseSimpleValue(self.report, "PackageName")
@@ -328,11 +332,14 @@ class CrashReport(db.Model):
 		self.crashSignature = signature
 		self.signHash = hashlib.sha256(signature).hexdigest()
 		self.crashTime = crash_ts
+		self.crashTz = tzname
 		self.sendTime = send_ts
+		self.board = self.parseSimpleValue(self.report, "Board")
 		self.brand = self.parseSimpleValue(self.report, "Brand")
 		self.model = self.parseSimpleValue(self.report, "Model")
 		self.product = self.parseSimpleValue(self.report, "Product")
 		self.device = self.parseSimpleValue(self.report, "Device")
+		self.display = self.parseSimpleValue(self.report, "Display")
 		self.androidOSId = self.parseSimpleValue(self.report, "ID")
 		self.androidOSVersion = self.parseSimpleValue(self.report, "AndroidVersion")
 		try:
@@ -340,7 +347,11 @@ class CrashReport(db.Model):
 		except ValueError:
 			logging.warning("Hospitalizing message: Failed in parsing available internal memory: '" + self.parseSimpleValue(self.report, "AvailableInternalMemory") + "'")
 			return "avail_mem_parse_error"
-		self.tags = self.parseSimpleValue(self.report, "Tags")
+		try:
+			self.totalInternalMemory = long(self.parseSimpleValue(self.report, "TotalInternalMemory"))
+		except ValueError:
+			logging.warning("Hospitalizing message: Failed in parsing total internal memory: '" + self.parseSimpleValue(self.report, "TotalInternalMemory") + "'")
+			return "total_mem_parse_error"
 		#self.put()
 		return ""
 
@@ -392,12 +403,11 @@ class LogSenderHandler(InboundMailHandler):
 		body = re.sub(r'<(?!br/?>)[^>]+>', '', body)
 		# Strip tabs of the form &#09;
 		body = re.sub(r'&#0?9;', ' ', body)
-		cr = CrashReport(email = mail_message.sender, crashId = subject, report = body)
+		cr = CrashReport(crashId = subject, report = body)
 		hospital_reason = cr.parseReport()
 		if hospital_reason:
 			logging.info("Hospitalized body: '" + body)
-			hr = HospitalizedReport(email=mail_message.sender,
-					crashId=subject,
+			hr = HospitalizedReport(crashId=subject,
 					crashBody=body,
 					diagnosis=hospital_reason,
 					processed=False)
@@ -419,7 +429,7 @@ class Feedback(db.Model):
 	sendTime = db.DateTimeProperty(required=True)
 	timezone = db.StringProperty()
 	type = db.StringProperty()
-	message = db.StringProperty()
+	message = db.TextProperty()
 
 class HttpFeedbackReceiver(webapp.RequestHandler):
 	def parseDateTime(self, dtstr):
@@ -435,12 +445,10 @@ class HttpFeedbackReceiver(webapp.RequestHandler):
 		sentOn = None
 		_type = self.request.get('type', '')
 
-		for name in post_args:
-			logging.debug("http crash receiver, " + name + ": " + self.request.get(name, 0))
 		if _type in ['feedback', 'error-feedback']:
 			if 'reportsentutc' in post_args:
 				sentOn = self.parseDateTime(self.request.get('reportsentutc', ''))
-			_groupId = long(self.request.get('groupid', '0'))
+			_groupId = long(self.request.get('groupid', ''))
 			if _groupId and sentOn:
 				fb = Feedback(groupId = _groupId,
 						sendTime = sentOn,
@@ -451,13 +459,99 @@ class HttpFeedbackReceiver(webapp.RequestHandler):
 				self.response.out.write("OK")
 			else:
 				self.error(400)
+		else:
+			self.error(400)
 
 class HttpCrashReceiver(webapp.RequestHandler):
+	def parseDateTime(self, dtstr):
+		dt = dtstr.split('.')
+		ts = datetime.strptime(dt[0], r'%Y-%m-%dT%H:%M:%S')
+		micros = dt[1][:6]
+		logging.info("micros: '%s'", micros)
+		ts = ts + timedelta(microseconds = long(micros + "000000"[len(micros):]))
+		logging.info("micros: %d", ts.microsecond)
+		return pytz.utc.localize(ts)
+	def parseEssentials(self, cr, req, signature, groupId, index):
+		cr.packageName = req.get('packagename', '')
+		cr.versionName = req.get('versionname', '').strip()
+		cr.crashSignature = signature
+		cr.signHash = hashlib.sha256(signature).hexdigest()
+		cr.sendTime = self.parseDateTime(req.get('reportsentutc', ''))
+		cr.crashTz = req.get('reportgeneratedtz', '')
+		cr.crashTime = self.parseDateTime(req.get('reportgeneratedutc', ''))
+		cr.board = req.get('board', '')
+		cr.brand = req.get('brand', '')
+		cr.model = req.get('model', '')
+		cr.display = req.get('display', '')
+		cr.product = req.get('product', '')
+		cr.device = req.get('device', '')
+		cr.androidOSId = req.get('id', '')
+		cr.androidOSVersion = req.get('androidversion', '')
+		cr.availableInternalMemory = long(req.get('availableinternalmemory', '0'))
+		cr.totalInternalMemory = long(req.get('totalinternalmemory', '0'))
+		cr.signature = signature
+		cr.crashSignature = signature
+		cr.signHash = hashlib.sha256(signature).hexdigest()
+		cr.groupId = groupId
+		cr.index = index
+		cr.source = "http"
+	def getCrashSignature(self, body):
+		signLine1 = ''
+		signLine2 = ''
+		m1 = re.search(r"Begin Stacktrace\s*(\n\s*)*([^<\s][^<]*[^<\s])\s*\n", body, re.M|re.U)
+		if m1:
+			signLine1 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m1.group(2))
+		m2 = re.search(r"\n\s*(at\scom\.(ichi2|mindprod|samskivert|tomgibara)\.[^<]*[^<\s])\s*\n", body, re.M|re.U)
+		if m2:
+			signLine2 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m2.group(1))
+		return signLine1 + "\n" + signLine2
 	def post(self):
 		post_args = self.request.arguments()
-		for name in post_args:
-			logging.debug("http crash receiver, " + name + ": " + self.request.get(name, 0))
-		self.response.out.write("OK got it!")
+		_type = self.request.get('type', '')
+
+		if _type in ['crash-stacktrace']:
+			_groupId = self.request.get('groupid', '')
+			try:
+				_index = long(self.request.get('index', ''))
+			except ValueError:
+				_index = -1
+			if _groupId and _index >= 0:
+				body = self.request.get('stacktrace', '')
+				if body:
+					signature = self.getCrashSignature(body)
+					sendTime = self.parseDateTime(self.request.get('reportsentutc', ''))
+					sendtz = self.request.get('reportsenttz', '')
+					if signature != "\n" and sendTime and sendtz:
+						tz = timezone(sendtz)
+						logging.info("ts: " + sendTime.astimezone(tz).strftime("%a %b %d %H:%M:%S %%s %Y"))
+						_crashId = 'HTTP Bug Report on %s num: %03d' % (sendTime.astimezone(tz).strftime("%a %b %d %H:%M:%S %%s %Y"), _index)
+						_crashId = _crashId % sendtz
+						logging.info("HTTP report: " + _crashId)
+						cr = CrashReport(crashId = _crashId, report = body)
+						self.parseEssentials(cr, self.request, signature, _groupId, _index)
+						cr.put()
+						cr.linkToBug()
+						AppVersion.insert(cr.versionName, cr.crashTime)
+						if cr.bugKey.count == 1:
+							self.response.out.write("new")
+						else:
+							issueName = cr.bugKey.issueName
+							if issueName is None:
+								self.response.out.write("known")
+							else:
+								self.response.out.write("issue:%d:%s" % (cr.bugKey.issueName, cr.bugKey.status))
+					else:
+						logging.error("HttpCrashReceiver: cannot extract signature")
+						self.error(400)
+				else:
+					logging.error("HttpCrashReceiver: stacktrace (" + body + ") not available")
+					self.error(400)
+			else:
+				logging.error("HttpCrashReceiver: groupid (%s) or id (%s) are not available", _groupId, self.request.get('index', ''))
+				self.error(400)
+		else:
+			logging.error("HttpCrashReceiver: wrong tpost type (" + _type + ")")
+			self.error(400)
 
 def main():
 	application = webapp.WSGIApplication([LogSenderHandler.mapping(),

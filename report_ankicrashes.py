@@ -236,7 +236,7 @@ class ViewHospital(webapp.RequestHandler):
 			attemped_fix_id = self.request.get('crash_id', 0)
 			hr = HospitalizedReport.get_by_id(long(attemped_fix_id))
 			if hr and not hr.processed:
-				cr = CrashReport(email = hr.email, crashId = hr.crashId, report = hr.crashBody)
+				cr = CrashReport(crashId = hr.crashId, report = hr.crashBody)
 				hr.diagnosis = cr.parseReport()
 				if not hr.diagnosis:
 					hr.processed = True
