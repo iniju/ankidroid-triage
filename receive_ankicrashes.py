@@ -509,6 +509,11 @@ class HttpCrashReceiver(webapp.RequestHandler):
 		post_args = self.request.arguments()
 		_type = self.request.get('type', '')
 
+		for name in post_args:
+			try:
+				logging.debug('pair: %s = "%s"' % (name, self.request.get(name)))
+			except:
+				pass
 		if _type in ['crash-stacktrace']:
 			_groupId = self.request.get('groupid', '')
 			try:
