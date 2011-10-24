@@ -489,9 +489,9 @@ class HttpCrashReceiver(webapp.RequestHandler):
 		cr.androidOSVersion = req.get('androidversion', '')
 		cr.availableInternalMemory = long(req.get('availableinternalmemory', '0'))
 		cr.totalInternalMemory = long(req.get('totalinternalmemory', '0'))
-		cr.signature = signature
-		cr.crashSignature = signature
-		cr.signHash = hashlib.sha256(signature).hexdigest()
+		#cr.signature = signature
+		#cr.crashSignature = signature
+		#cr.signHash = hashlib.sha256(signature).hexdigest()
 		cr.groupId = groupId
 		cr.index = index
 		cr.source = "http"
@@ -504,6 +504,8 @@ class HttpCrashReceiver(webapp.RequestHandler):
 		m2 = re.search(r"\n\s*(at\scom\.(ichi2|mindprod|samskivert|tomgibara)\.[^<]*[^<\s])\s*\n", body, re.M|re.U)
 		if m2:
 			signLine2 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m2.group(1))
+		logging.debug('Sign m1: %s' % m1.group(2))
+		logging.debug('Sign m2: %s' % m1.group(1))
 		return signLine1 + "\n" + signLine2
 	def post(self):
 		post_args = self.request.arguments()
