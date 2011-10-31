@@ -40,8 +40,8 @@ from BeautifulSoup import BeautifulSoup
 
 class AppVersion(db.Model):
 	name = db.StringProperty(required=True)
-	lastIncident = db.DateTimeProperty(required=True)
-	crashCount = db.IntegerProperty(required=True)
+	lastIncident = db.DateTimeProperty(required=True, indexed=False)
+	crashCount = db.IntegerProperty(required=True, indexed=False)
 	activeFrom = db.DateTimeProperty(required=False)
 	@classmethod
 	def insert(cls, _name, _ts):
@@ -95,15 +95,15 @@ class Bug(db.Model):
 		#logging.info("Comparing priority: " + str(cls.issuePriorityOrder[a['priority']]) + " " + str(cls.issuePriorityOrder[b['priority']]) + " " + str(cmp(cls.issuePriorityOrder[a['priority']], cls.issuePriorityOrder[b['priority']])))
 		#logging.info("Comparing ID: " + str(cmp(-a['id'], -b['id'])))
 		return cmp(cls.issueStatusOrder[a['status']], cls.issueStatusOrder[b['status']]) or cmp(cls.issuePriorityOrder[a['priority']], cls.issuePriorityOrder[b['priority']]) or cmp(-a['id'], -b['id'])
-	signature = db.TextProperty(required=True)
+	signature = db.TextProperty(required=True, indexed=False)
 	signHash = db.StringProperty()
 	count = db.IntegerProperty(required=True)
 	lastIncident = db.DateTimeProperty()
-	linked = db.BooleanProperty()
-	issueName = db.IntegerProperty()
-	fixed = db.BooleanProperty()
-	status = db.StringProperty()
-	priority = db.StringProperty()
+	linked = db.BooleanProperty(indexed=False)
+	issueName = db.IntegerProperty(indexed=False)
+	fixed = db.BooleanProperty(indexed=False)
+	status = db.StringProperty(indexed=False)
+	priority = db.StringProperty(indexed=False)
 	def updateStatusPriority(self):
 		url = r"http://code.google.com/feeds/issues/p/ankidroid/issues/full?id=" + str(self.issueName)
 		updated = False
@@ -152,30 +152,31 @@ class Bug(db.Model):
 
 class CrashReport(db.Model):
 	crashId = db.StringProperty(required=True)
-	report = db.TextProperty(required=True)
-	packageName = db.StringProperty()
+	report = db.TextProperty(required=True, indexed=False)
+	packageName = db.StringProperty(indexed=False)
 	versionName = db.StringProperty()
-	crashSignature = db.TextProperty()
+	crashSignature = db.TextProperty(indexed=False)
 	signHash = db.StringProperty()
 	crashTime = db.DateTimeProperty()
 	crashTz = db.StringProperty()
-	sendTime = db.DateTimeProperty()
-	board = db.StringProperty()
-	brand = db.StringProperty()
-	model = db.StringProperty()
-	product = db.StringProperty()
-	device = db.StringProperty()
-	display = db.StringProperty()
-	androidOSId = db.StringProperty()
-	androidOSVersion = db.StringProperty()
-	availableInternalMemory = db.IntegerProperty()
-	totalInternalMemory = db.IntegerProperty()
+	sendTime = db.DateTimeProperty(indexed=False)
+	board = db.StringProperty(indexed=False)
+	brand = db.StringProperty(indexed=False)
+	model = db.StringProperty(indexed=False)
+	product = db.StringProperty(indexed=False)
+	device = db.StringProperty(indexed=False)
+	display = db.StringProperty(indexed=False)
+	androidOSId = db.StringProperty(indexed=False)
+	androidOSVersion = db.StringProperty(indexed=False)
+	availableInternalMemory = db.IntegerProperty(indexed=False)
+	totalInternalMemory = db.IntegerProperty(indexed=False)
 	bugKey = db.ReferenceProperty(Bug)
 	entityVersion = db.IntegerProperty(default=2)
 	adminOpsflag = db.IntegerProperty(default=0)
 	groupId = db.StringProperty(default='')
-	index = db.IntegerProperty(default=0)
-	source = db.StringProperty(default='email')
+	index = db.IntegerProperty(default=0, indexed=False)
+	source = db.StringProperty(default='email', indexed=False)
+	archived = db.BooleanProperty(default=False)
 	def linkToBug(self):
 		results = db.GqlQuery("SELECT * FROM Bug WHERE signHash = :1", self.signHash)
 		bug = results.get()
@@ -428,17 +429,15 @@ class Feedback(db.Model):
 	groupId = db.IntegerProperty(required=True)
 	sendTime = db.DateTimeProperty(required=True)
 	timezone = db.StringProperty()
-	type = db.StringProperty()
-	message = db.TextProperty()
+	type = db.StringProperty(indexed=False)
+	message = db.TextProperty(indexed=False)
 
 class HttpFeedbackReceiver(webapp.RequestHandler):
 	def parseDateTime(self, dtstr):
 		dt = dtstr.split('.')
 		ts = datetime.strptime(dt[0], r'%Y-%m-%dT%H:%M:%S')
 		micros = dt[1][:6]
-		logging.info("micros: '%s'", micros)
 		ts = ts + timedelta(microseconds = long(micros + "000000"[len(micros):]))
-		logging.info("micros: %d", ts.microsecond)
 		return pytz.utc.localize(ts)
 	def post(self):
 		post_args = self.request.arguments()
@@ -467,9 +466,7 @@ class HttpCrashReceiver(webapp.RequestHandler):
 		dt = dtstr.split('.')
 		ts = datetime.strptime(dt[0], r'%Y-%m-%dT%H:%M:%S')
 		micros = dt[1][:6]
-		logging.info("micros: '%s'", micros)
 		ts = ts + timedelta(microseconds = long(micros + "000000"[len(micros):]))
-		logging.info("micros: %d", ts.microsecond)
 		return pytz.utc.localize(ts)
 	def parseEssentials(self, cr, req, signature, groupId, index):
 		cr.packageName = req.get('packagename', '')
@@ -498,14 +495,16 @@ class HttpCrashReceiver(webapp.RequestHandler):
 	def getCrashSignature(self, body):
 		signLine1 = ''
 		signLine2 = ''
-		m1 = re.search(r"Begin Stacktrace\s*(\n\s*)*([^<\s][^<]*[^<\s])\s*\n", body, re.M|re.U)
+		#m1 = re.search(r"Begin Stacktrace[\s\n]*([^<\s][^<\n]*[^<\s][\s\n]*at\s[^<\n]*)", body, re.M|re.U)
+		#		Begin Stacktrace\s*(\n\s*)*([^<\s][^<\n]*[^<\s]\s*\n\s*at\s[^<\n]*)", body, re.M|re.U)
+		m1 = re.search(r"Begin Stacktrace[\s\n]*([^\n]*\n\s*at[^\n]*[^\s])\s*\n", body, re.M|re.U)
 		if m1:
-			signLine1 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m1.group(2))
-		m2 = re.search(r"\n\s*(at\scom\.(ichi2|mindprod|samskivert|tomgibara)\.[^<]*[^<\s])\s*\n", body, re.M|re.U)
+			signLine1 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m1.group(1))
+			logging.debug('Sign m1: %s' % m1.group(1))
+		m2 = re.search(r"\n\s*(at\scom\.(ichi2|mindprod|samskivert|tomgibara|hlidskialf)\.[^\n]*[^\s])\s*\n", body, re.M|re.U)
 		if m2:
 			signLine2 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m2.group(1))
-		logging.debug('Sign m1: %s' % m1.group(2))
-		logging.debug('Sign m2: %s' % m2.group(1))
+			logging.debug('Sign m2: %s' % m2.group(1))
 		return signLine1 + "\n" + signLine2
 	def post(self):
 		post_args = self.request.arguments()
