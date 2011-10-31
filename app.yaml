@@ -15,9 +15,9 @@ handlers:
 - url: /css
   static_dir: css
 
-- url: /_ah/mail/ankidroid_crash_reports@ankidroid-triage\.appspotmail\.com.*
-  script: receive_ankicrashes.py
-  login: admin
+#- url: /_ah/mail/ankidroid_crash_reports@ankidroid-triage\.appspotmail\.com.*
+#  script: receive_ankicrashes.py
+#  login: admin
 
 - url: /admin_.*
   script: admin_ops.py
