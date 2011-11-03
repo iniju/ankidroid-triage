@@ -23,6 +23,10 @@ handlers:
   script: admin_ops.py
   login: admin
 
+- url: /backend/testing
+  script: backends.py
+#login: admin
+
 - url: /cron_updater.*
   script: cron_updater.py
   login: admin
@@ -32,6 +36,10 @@ handlers:
 
 - url: /crash_receiver.*
   script: receive_ankicrashes.py
+
+- url: /mapreduce(/.*)?
+  script: mapreduce/main.py
+  login: admin
 
 - url: /.*
   script: report_ankicrashes.py
