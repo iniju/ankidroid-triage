@@ -1,0 +1,41 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!--
+  Copyright (c) 2010 Konstantinos Spyropoulos <inigo.aldana@gmail.com>
+ 
+  This file is part of ankidroid-triage
+ 
+  ankidroid-triage is free software: you can redistribute it and/or modify it under the terms of the
+  GNU General Public License as published by the Free Software Foundation, either version 3 of
+  the License, or (at your option) any later version.
+
+  ankidroid-triage is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License along with ankidroid-triage.
+  If not, see http://www.gnu.org/licenses/.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+		<meta http-equiv="Content-Language" content="en-us" />
+		<title>AnkiDroid Triage - Admin operations</title>
+		<link rel="stylesheet" type="text/css" href="/css/main.css">
+	</head>
+	<body>
+		<p>backend status: {{ backend_status }}</p></br>
+		<p>Unprocessed crashes: {{ unprocessed_crashes }}</p></br>
+		<p>Total bugs: {{ total_bugs }}</p></br>
+		<p>Problem crashess: {{ problem_crashes }}</p></br>
+		<form action="/admin_ops/backend" method="post">
+			<input type="hidden" name="op" value="rebuild_bugs">
+			{% if backend_status %}
+			{% else %}
+			<input type="submit" name="cmd" value="Start">
+			{% endif %}
+			<input type="submit" name="cmd" value="Clear">
+		</form>
+	</body>
+</html>
+

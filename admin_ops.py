@@ -15,7 +15,7 @@
 # If not, see http://www.gnu.org/licenses/.
 # #####
 
-import os, sys, logging, re, hashlib
+import os, sys, logging, re, hashlib, time
 from datetime import datetime
 from urllib import quote_plus
 from string import strip
@@ -32,6 +32,8 @@ from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.ext.webapp import template
 from google.appengine.api.urlfetch import fetch
 from google.appengine.api.urlfetch import Error
+from google.appengine.api import taskqueue
+from google.appengine.api import memcache
 
 from receive_ankicrashes import AppVersion
 from receive_ankicrashes import CrashReport
@@ -44,14 +46,37 @@ from BeautifulSoup import BeautifulSoup
 #	del sys.modules[k]
 webapp.template.register_template_library('templatetags.basic_math')
 
+class AdminOpsBackendManager(webapp.RequestHandler):
+	def get(self):
+		crashes_query = CrashReport.all()
+		crashes_query.filter('adminOpsflag =', 1)
+		unprocessed_crashes = crashes_query.count(1000000)
+		crashes_query = CrashReport.all()
+		crashes_query.filter('signHash =', 'adc83b19e793491b1c6ea0fd8b46cd9f32e592fc')
+		problem_crashes = crashes_query.count(1000000)
+		bugs_query = Bug.all()
+		total_bugs = bugs_query.count(1000000)
+		logging.info('Unprocessed crashes: %d' % unprocessed_crashes)
+		path = os.path.join(os.path.dirname(__file__), 'templates/admin_ops_backend_starter.html')
+		params = {'backend_status': memcache.get('backend_status'), 'unprocessed_crashes': unprocessed_crashes, 'total_bugs': total_bugs, 'problem_crashes': problem_crashes}
+		self.response.out.write(template.render(path, params))
+
+	def post(self):
+		params = {'op': self.request.get('op'), 'cmd': self.request.get('cmd')}
+		#taskqueue.add(queue_name='admin-ops-queue', url='/backend/testing', params=params, method='GET', target='admin-ops-handler')
+		for i in range(1, 98):
+			taskqueue.add(queue_name='admin-ops-queue', url='/backend/testing', params=params, method='GET')#, target='admin-ops-handler')
+
+		#time.sleep(5)
+		#self.redirect('/admin_ops/backend')
+
 class ShowCrashBody(webapp.RequestHandler):
 	def get(self):
 		crId = long(self.request.get('id'))
 		cr = CrashReport.get_by_id(crId)
 		m = re.search(r'^(.*--\&gt; END REPORT 1 \&lt;--).*$', cr.report, re.S)
 		new_report = m.group(1)
-		template_values = {'crash_body': cr.report,
-				'new_crash_body': new_report}
+		template_values = {'crash_body': cr.report, 'new_crash_body': new_report}
 		logging.info(cr.report)
 		logging.info(new_report)
 		path = os.path.join(os.path.dirname(__file__), 'templates/admin_ops_show.html')
@@ -132,7 +157,6 @@ class RebuildVersions(webapp.RequestHandler):
 		self.response.out.write(template.render(path, template_values))
 
 class RebuildBugs(webapp.RequestHandler):
-	batch_size = 250
 	def get(self):
 		batch = RebuildBugs.batch_size
 		crashes_query = CrashReport.all()
@@ -162,7 +186,7 @@ class RebuildBugs(webapp.RequestHandler):
 				logging.warning("Can't get signature for CrashReport: " + str(cr.key().id()))
 				valueSet["unlinked"] = valueSet["unlinked"] + 1
 			else:
-				cr.signHash = hashlib.sha256(cr.crashSignature).hexdigest()
+				cr.signHash = hashlib.sha1(cr.crashSignature).hexdigest()
 				cr.linkToBug()
 				bugId = str(cr.bugKey.key().id())
 				if bugId in valueSet:
@@ -185,8 +209,8 @@ class RebuildBugs(webapp.RequestHandler):
 application = webapp.WSGIApplication(
 		[(r'^/admin_show.*$', ShowCrashBody),
 		(r'^/admin_ops/rebuild_versions$', RebuildVersions),
-		#(r'^/admin_ops/rescan_issues$', RescanIssues),
-		(r'^/admin_ops/rebuild_bugs$', RebuildBugs)],
+		#(r'^/admin_ops/rebuild_bugs$', RebuildBugs)],
+		(r'^/admin_ops/backend.*$', AdminOpsBackendManager)],
 		debug=True)
 
 def main():

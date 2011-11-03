@@ -1,0 +1,5 @@
+backends:
+- name: admin-ops-handler
+  class: B8
+  options: dynamic, public
+  start: backends.py
