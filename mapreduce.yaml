@@ -1,0 +1,19 @@
+mapreduce:
+- name: Rebuild Crash Signatures
+  mapper:
+    input_reader: mapreduce.input_readers.DatastoreInputReader
+    handler: mapper.rebuild_signatures
+    params:
+    - name: entity_kind
+      default: receive_ankicrashes.CrashReport
+    - name: shard_count
+      value: 1
+
+- name: Delete Bugs
+  mapper:
+    input_reader: mapreduce.input_readers.DatastoreInputReader
+    handler: mapper.delete_bugs
+    params:
+    - name: entity_kind
+      default: receive_ankicrashes.Bug
+
