@@ -25,7 +25,7 @@ from urllib import quote
 from urllib import quote_plus
 from quopri import decodestring
 from email.header import decode_header
-from google.appengine.api import mail
+from google.appengine.api import mail, memcache
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
 from google.appengine.ext.webapp.util import run_wsgi_app
@@ -172,41 +172,52 @@ class CrashReport(db.Model):
 	totalInternalMemory = db.IntegerProperty(indexed=False)
 	bugKey = db.ReferenceProperty(Bug)
 	entityVersion = db.IntegerProperty(default=2)
-	adminOpsflag = db.IntegerProperty(default=0)
+	adminOpsflag = db.IntegerProperty(default=6)
 	groupId = db.StringProperty(default='')
 	index = db.IntegerProperty(default=0, indexed=False)
 	source = db.StringProperty(default='email', indexed=False)
 	archived = db.BooleanProperty(default=False)
-	def linkToBug(self):
-		results = db.GqlQuery("SELECT * FROM Bug WHERE signHash = :1", self.signHash)
+	def linkToBug(self, save=True):
+		#bug = memcache.get(key=self.signHash)
+		#if bug == None:
+		results = Bug.all()
+		results.filter('signHash = ', self.signHash)
+		#results = db.GqlQuery("SELECT * FROM Bug WHERE signHash = :1", self.signHash)
 		bug = results.get()
+		#if bug:
+			#logging.debug("Found existing bug")
+			#memcache.set(key=self.signHash, value=bug, time=7200)
 		if bug:
-			logging.debug("Found existing bug")
-			if self.bugKey != bug.key():
-				logging.debug("Assigning to bug: %d" % bug.key().id())
-				oldbug = self.bugKey
-				self.bugKey = bug.key()
+			bugkey = bug.key()
+		#	if self.bugKey != bugkey:
+			logging.debug("Assigning to bug: %s" % bugkey)
+			#oldbug = self.bugKey
+			self.bugKey = bugkey
+			if save:
 				self.put()
-				bug.count += 1
-				bug.lastIncident = self.crashTime
-				bug.put()
-				if oldbug:
-					logging.debug("Reducing count (%d) of old bug: %d" % oldbug.count, oldbug.key().id())
-					if oldbug.count == 1:
-						logging.debug("Deleting old bug: %d" % oldbug.key().id())
-						oldbug.delete()
-					else:
-						logging.debug("Old bug count: %d" % oldbug.count)
-						oldbug.count -= 1
-						oldbug.put()
-			else:
-				logging.debug("Same as old bug: %d" % oldbug.key().id())
+			bug.count += 1
+			bug.lastIncident = self.crashTime
+			bug.put()
+			#memcache.set(key=self.signHash, value=bug, time=7200)
+				#if oldbug:
+			#		logging.debug("Reducing count (%d) of old bug: %d" % oldbug.count, oldbug.key().id())
+			#		if oldbug.count == 1:
+			#			#logging.debug("Deleting old bug: %d" % oldbug.key().id())
+			#			oldbug.delete()
+			#		else:
+			#			#logging.debug("Old bug count: %d" % oldbug.count)
+			#			oldbug.count -= 1
+			#			oldbug.put()
+			#else:
+			#	logging.debug("Same as old bug: %d" % oldbug.key().id())
 		else:
 			logging.debug("Created new bug")
 			nb = Bug(signature = self.crashSignature, signHash = self.signHash, count = 1, lastIncident = self.crashTime, linked = False, fixed = False, status = '', priority = '')
 			self.bugKey = nb.put()
-			logging.debug("Linked to bug, new count: " + str(self.bugKey.count))
-			self.put()
+			#memcache.set(key=self.signHash, value=nb, time=7200)
+			#logging.debug("Linked to bug, new count: " + str(self.bugKey.count))
+			if save:
+				self.put()
 	@classmethod
 	def parseUTCDateTime(cls, dt_str):
 		m = re.match(r"(\w+ \w+ \d+ \d+:\d+:\d+ )(\S.*\S)( \d+)",  dt_str, re.U)
@@ -269,18 +280,37 @@ class CrashReport(db.Model):
 		logging.debug("UTC time parsed: '" + tm.astimezone(pytz.utc).strftime(r"%d/%m/%Y %H:%M:%S %Z") + "'")
 		return (tm.astimezone(pytz.utc), "", tzname)
 	@classmethod
-	def getCrashSignature(cls, body):
+	def getCrashSignature(self, body):
 		signLine1 = ''
 		signLine2 = ''
-		m1 = re.search(r"Begin Stacktrace\s*(<br>\s*)*([^<\s][^<]*[^<\s])\s*<br>", body, re.M|re.U)
+		cleanbody = re.sub(r"<br></br>", "\n", body)
+		cleanbody = re.sub(r"<br\s*/?>", "\n", cleanbody)
+		cleanbody = re.sub(r"\xa0", " ", cleanbody, re.U)
+		#m1 = re.search(r"Begin Stacktrace[\s\n]*([^<\s][^<\n]*[^<\s][\s\n]*at\s[^<\n]*)", body, re.M|re.U)
+		#		Begin Stacktrace\s*(\n\s*)*([^<\s][^<\n]*[^<\s]\s*\n\s*at\s[^<\n]*)", body, re.M|re.U)
+		#m1 = re.search(r"Begin Stacktrace[\s\n]*([^\n]*\n\s*at[^\n]*[^\s])\s*\n", body, re.M|re.U)
+		m1 = re.search(r"Begin Stacktrace[\s\n]*([^)]*?\))[\n\s]*at[\n\s]", cleanbody, re.M|re.U)
 		if m1:
-			signLine1 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m1.group(2))
-			#signLine1 = m1.group(2)
-		m2 = re.search(r"<br>\s*(at\scom\.(ichi2|mindprod|samskivert|tomgibara)\.[^<]*[^<\s])\s*<br>", body, re.M|re.U)
+			signLine1 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m1.group(1))
+			logging.debug('Sign m1: %s' % signLine1)
+		#m2 = re.search(r"\n\s*(at\scom\.(ichi2|mindprod|samskivert|tomgibara|hlidskialf)\.[^\n]*[^\s])\s*\n", body, re.M|re.U)
+		m2 = re.search(r"[\n\s]*(at\scom\.(ichi2|mindprod|samskivert|tomgibara|hlidskialf)\.[^)]*?\))[\s\n]*at[\n\s]", cleanbody, re.M|re.U)
 		if m2:
 			signLine2 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m2.group(1))
-			#signLine2 = m2.group(1)
+			logging.debug('Sign m2: %s' % signLine2)
 		return signLine1 + "\n" + signLine2
+#	def getCrashSignature(cls, body):
+#		signLine1 = ''
+#		signLine2 = ''
+#		m1 = re.search(r"Begin Stacktrace\s*(<br>\s*)*([^<\s][^<]*[^<\s])\s*<br>", body, re.M|re.U)
+#		if m1:
+#			signLine1 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m1.group(2))
+#			#signLine1 = m1.group(2)
+#		m2 = re.search(r"<br>\s*(at\scom\.(ichi2|mindprod|samskivert|tomgibara)\.[^<]*[^<\s])\s*<br>", body, re.M|re.U)
+#		if m2:
+#			signLine2 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m2.group(1))
+#			#signLine2 = m2.group(1)
+#		return signLine1 + "\n" + signLine2
 	#m = re.search(r".*<br>\s*(.*?com\.ichi2\.anki\..*?)<br>", body, re.M|re.U)
 		#if m and m.groups():
 	#		return re.sub(r"\$[a-fA-F0-9@]*", "", m.group(1))
@@ -331,7 +361,7 @@ class CrashReport(db.Model):
 		self.packageName = self.parseSimpleValue(self.report, "PackageName")
 		self.versionName = self.parseSimpleValue(self.report, "VersionName").strip()
 		self.crashSignature = signature
-		self.signHash = hashlib.sha256(signature).hexdigest()
+		self.signHash = hashlib.sha1(signature).hexdigest()
 		self.crashTime = crash_ts
 		self.crashTz = tzname
 		self.sendTime = send_ts
@@ -472,7 +502,7 @@ class HttpCrashReceiver(webapp.RequestHandler):
 		cr.packageName = req.get('packagename', '')
 		cr.versionName = req.get('versionname', '').strip()
 		cr.crashSignature = signature
-		cr.signHash = hashlib.sha256(signature).hexdigest()
+		cr.signHash = hashlib.sha1(signature).hexdigest()
 		cr.sendTime = self.parseDateTime(req.get('reportsentutc', ''))
 		cr.crashTz = req.get('reportgeneratedtz', '')
 		cr.crashTime = self.parseDateTime(req.get('reportgeneratedutc', ''))
@@ -486,26 +516,27 @@ class HttpCrashReceiver(webapp.RequestHandler):
 		cr.androidOSVersion = req.get('androidversion', '')
 		cr.availableInternalMemory = long(req.get('availableinternalmemory', '0'))
 		cr.totalInternalMemory = long(req.get('totalinternalmemory', '0'))
-		#cr.signature = signature
-		#cr.crashSignature = signature
-		#cr.signHash = hashlib.sha256(signature).hexdigest()
 		cr.groupId = groupId
 		cr.index = index
 		cr.source = "http"
-	def getCrashSignature(self, body):
-		signLine1 = ''
-		signLine2 = ''
-		#m1 = re.search(r"Begin Stacktrace[\s\n]*([^<\s][^<\n]*[^<\s][\s\n]*at\s[^<\n]*)", body, re.M|re.U)
-		#		Begin Stacktrace\s*(\n\s*)*([^<\s][^<\n]*[^<\s]\s*\n\s*at\s[^<\n]*)", body, re.M|re.U)
-		m1 = re.search(r"Begin Stacktrace[\s\n]*([^\n]*\n\s*at[^\n]*[^\s])\s*\n", body, re.M|re.U)
-		if m1:
-			signLine1 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m1.group(1))
-			logging.debug('Sign m1: %s' % m1.group(1))
-		m2 = re.search(r"\n\s*(at\scom\.(ichi2|mindprod|samskivert|tomgibara|hlidskialf)\.[^\n]*[^\s])\s*\n", body, re.M|re.U)
-		if m2:
-			signLine2 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m2.group(1))
-			logging.debug('Sign m2: %s' % m2.group(1))
-		return signLine1 + "\n" + signLine2
+#	def getCrashSignature(self, body):
+#		signLine1 = ''
+#		signLine2 = ''
+#		cleanbody = re.sub(r"<br></br>", "\n", body)
+#		cleanbody = re.sub(r"<br\s*/?>", "\n", cleanbody)
+#		#m1 = re.search(r"Begin Stacktrace[\s\n]*([^<\s][^<\n]*[^<\s][\s\n]*at\s[^<\n]*)", body, re.M|re.U)
+#		#		Begin Stacktrace\s*(\n\s*)*([^<\s][^<\n]*[^<\s]\s*\n\s*at\s[^<\n]*)", body, re.M|re.U)
+#		#m1 = re.search(r"Begin Stacktrace[\s\n]*([^\n]*\n\s*at[^\n]*[^\s])\s*\n", body, re.M|re.U)
+#		m1 = re.search(r"Begin Stacktrace[\s\n]*([^)]*?\))[\n\s]*at[\n\s]", cleanbody, re.M|re.U)
+#		if m1:
+#			signLine1 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m1.group(1))
+#			logging.debug('Sign m1: %s' % m1.group(1))
+#		#m2 = re.search(r"\n\s*(at\scom\.(ichi2|mindprod|samskivert|tomgibara|hlidskialf)\.[^\n]*[^\s])\s*\n", body, re.M|re.U)
+#		m2 = re.search(r"[\n\s]*(at\scom\.(ichi2|mindprod|samskivert|tomgibara|hlidskialf)\.[^)]*?\))[\s\n]*at[\n\s]", cleanbody, re.M|re.U)
+#		if m2:
+#			signLine2 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m2.group(1))
+#			logging.debug('Sign m2: %s' % m2.group(1))
+#		return signLine1 + "\n" + signLine2
 	def post(self):
 		post_args = self.request.arguments()
 		_type = self.request.get('type', '')
@@ -524,7 +555,7 @@ class HttpCrashReceiver(webapp.RequestHandler):
 			if _groupId and _index >= 0:
 				body = self.request.get('stacktrace', '')
 				if body:
-					signature = self.getCrashSignature(body)
+					signature = CrashReport.getCrashSignature(body)
 					sendTime = self.parseDateTime(self.request.get('reportsentutc', ''))
 					sendtz = self.request.get('reportsenttz', '')
 					if signature != "\n" and sendTime and sendtz:
