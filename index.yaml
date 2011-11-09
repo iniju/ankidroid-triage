@@ -6,11 +6,6 @@ indexes:
   - name: crashTime
     direction: desc
 
-#- kind: CrashReport
-#  properties:
-#  - name: versionName
-#  - name: crashTime
-
 - kind: CrashReport
   properties:
   - name: versionName

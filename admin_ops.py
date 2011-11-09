@@ -36,10 +36,12 @@ from google.appengine.api import taskqueue
 from google.appengine.api import memcache
 
 from receive_ankicrashes import AppVersion
+from receive_ankicrashes import Feedback
 from receive_ankicrashes import CrashReport
 from receive_ankicrashes import HospitalizedReport
 from receive_ankicrashes import Bug
 from BeautifulSoup import BeautifulSoup
+from Cnt import Cnt
 
 # Remove the standard version of Django
 #for k in [k for k in sys.modules if k.startswith('django')]:
@@ -48,18 +50,20 @@ webapp.template.register_template_library('templatetags.basic_math')
 
 class AdminOpsBackendManager(webapp.RequestHandler):
 	def get(self):
-		crashes_query = CrashReport.all()
-		crashes_query.filter('adminOpsflag =', 1)
-		unprocessed_crashes = crashes_query.count(1000000)
-		crashes_query = CrashReport.all()
-		crashes_query.filter('signHash =', 'adc83b19e793491b1c6ea0fd8b46cd9f32e592fc')
-		problem_crashes = crashes_query.count(1000000)
-		bugs_query = Bug.all()
-		total_bugs = bugs_query.count(1000000)
-		logging.info('Unprocessed crashes: %d' % unprocessed_crashes)
-		path = os.path.join(os.path.dirname(__file__), 'templates/admin_ops_backend_starter.html')
-		params = {'backend_status': memcache.get('backend_status'), 'unprocessed_crashes': unprocessed_crashes, 'total_bugs': total_bugs, 'problem_crashes': problem_crashes}
-		self.response.out.write(template.render(path, params))
+		#q = CrashReport.all(keys_only=True)
+		#Cnt.set("CrashReport_counter", q.count(1000000))
+		
+		#q = Feedback.all(keys_only=True)
+		#Cnt.set("Feedback_counter", q.count(1000000))
+
+		#q = Bug.all(keys_only=True)
+		#Cnt.set("Bug_counter", q.count(1000000))
+
+		#q = AppVersion.all(keys_only=True)
+		#Cnt.set("AppVersion_counter", q.count(1000000))
+
+		outputstr = "CrashReport_counter: %d<br>Feedback_counter: %d<br>Bug_counter: %d<br>AppVersion_counter: %d" % (Cnt.get("CrashReport_counter"), Cnt.get("Feedback_counter"), Cnt.get("Bug_counter"), Cnt.get("AppVersion_counter"))
+		self.response.out.write(outputstr)
 
 	def post(self):
 		params = {'op': self.request.get('op'), 'cmd': self.request.get('cmd')}
