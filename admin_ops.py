@@ -42,6 +42,7 @@ from receive_ankicrashes import HospitalizedReport
 from receive_ankicrashes import Bug
 from BeautifulSoup import BeautifulSoup
 from Cnt import Cnt
+from Lst import Lst
 
 # Remove the standard version of Django
 #for k in [k for k in sys.modules if k.startswith('django')]:
@@ -50,19 +51,14 @@ webapp.template.register_template_library('templatetags.basic_math')
 
 class AdminOpsBackendManager(webapp.RequestHandler):
 	def get(self):
-		#q = CrashReport.all(keys_only=True)
-		#Cnt.set("CrashReport_counter", q.count(1000000))
-		
-		#q = Feedback.all(keys_only=True)
-		#Cnt.set("Feedback_counter", q.count(1000000))
+		vq = AppVersion.all()
+		vq.order("-activeFrom")
+		vo = vq.fetch(2000)
+		vn = [v.name for v in vo]
+		vn.insert(0, 'all')
+		Lst.set("all_version_names_list", vn)
 
-		#q = Bug.all(keys_only=True)
-		#Cnt.set("Bug_counter", q.count(1000000))
-
-		#q = AppVersion.all(keys_only=True)
-		#Cnt.set("AppVersion_counter", q.count(1000000))
-
-		outputstr = "CrashReport_counter: %d<br>Feedback_counter: %d<br>Bug_counter: %d<br>AppVersion_counter: %d" % (Cnt.get("CrashReport_counter"), Cnt.get("Feedback_counter"), Cnt.get("Bug_counter"), Cnt.get("AppVersion_counter"))
+		outputstr = repr(Lst.get("all_version_names_list"))
 		self.response.out.write(outputstr)
 
 	def post(self):

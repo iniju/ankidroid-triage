@@ -26,6 +26,7 @@ from django.conf import settings
 settings._target = None
 
 from google.appengine.ext import webapp
+from google.appengine.api import memcache
 from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.ext.webapp import template
 from google.appengine.api.urlfetch import fetch
@@ -35,6 +36,8 @@ from receive_ankicrashes import AppVersion
 from receive_ankicrashes import CrashReport
 from receive_ankicrashes import HospitalizedReport
 from receive_ankicrashes import Bug
+from Cnt import Cnt
+from Lst import Lst
 
 webapp.template.register_template_library('templatetags.basic_math')
 
@@ -97,11 +100,12 @@ class ViewCrash(webapp.RequestHandler):
 
 class ReportBugs(webapp.RequestHandler):
 	def get(self):
-		versions_query = AppVersion.all()
-		versions_query.order("-activeFrom")
-		versions_objs = versions_query.fetch(2000)
-		versions = [v.name for v in versions_objs]
-		versions.insert(0, "all")
+		#versions_query = AppVersion.all()
+		#versions_query.order("-activeFrom")
+		#versions_objs = versions_query.fetch(2000)
+		#versions = [v.name for v in versions_objs]
+		#versions.insert(0, "all")
+		versions = Lst.get('all_version_names_list')
 		selectedVersion = self.request.get('filter_version', "all")
 
 		bugs = []
@@ -135,6 +139,7 @@ class ReportBugs(webapp.RequestHandler):
 			bugs_query = Bug.all()
 			bugs_query.order("-count")
 			total_results = bugs_query.count(1000000)
+			#total_results = Cnt.get("Bug_counter")
 			last_page = max((total_results - 1) // 20, 0)
 			if page > last_page:
 				page = last_page
@@ -158,14 +163,23 @@ class ExportCrashes(webapp.RequestHandler):
 		crashes_query = CrashReport.all()
 		bugId = self.request.get('bug_id')
 
+		cacheId = "CrashReport"
+		crashes_query.order("-crashTime")
 		crashes = []
 		if bugId:
 			bug = Bug.get_by_id(long(bugId))
 			crashes_query.filter("bugKey =", bug)
+			cacheId += bugId
+		cacheId += "_counter"
 		crashes_query.order("-crashTime")
-		total_results = crashes_query.count(1000000)
+		total_results = memcache.get(cacheId)
+		if total_results is None:
+			total_results = Cnt.get(cacheId)
+			if total_results is None:
+				total_results = crashes_query.count(1000000)
+				memcache.set(cacheId, total_results, 86400)
 
-		crashes = crashes_query.fetch(total_results, 0)
+		crashes = crashes_query.fetch(1000000)
 		template_values = {'crashes_list': crashes,
 				'total_results': total_results,
 				'bug_id': bugId}
@@ -175,17 +189,18 @@ class ExportCrashes(webapp.RequestHandler):
 
 class ReportCrashes(webapp.RequestHandler):
 	def get(self):
-		versions_query = AppVersion.all()
-		versions_query.order("-activeFrom")
-		versions_objs = versions_query.fetch(2000)
-		versions = [v.name for v in versions_objs]
-		versions.insert(0, "all")
+		#versions_query = AppVersion.all()
+		#versions_query.order("-activeFrom")
+		#versions_objs = versions_query.fetch(2000)
+		#versions = [v.name for v in versions_objs]
+		#versions.insert(0, "all")
+		versions = Lst.get('all_version_names_list')
 
-		hospital_query = HospitalizedReport.all()
-		total_hospital = hospital_query.count()
-		hospital_query = HospitalizedReport.all()
-		hospital_query.filter('processed =', False)
-		sick_hospital = hospital_query.count()
+		#hospital_query = HospitalizedReport.all()
+		#total_hospital = hospital_query.count()
+		#hospital_query = HospitalizedReport.all()
+		#hospital_query.filter('processed =', False)
+		#sick_hospital = hospital_query.count()
 
 		crashes_query = CrashReport.all()
 		bugId = self.request.get('bug_id')
@@ -194,13 +209,22 @@ class ReportCrashes(webapp.RequestHandler):
 		logging.info("version: " + selectedVersion)
 
 		crashes = []
+		cacheId = "CrashReport"
 		if bugId:
 			bug = Bug.get_by_id(long(bugId))
 			crashes_query.filter("bugKey =", bug)
+			cacheId += bugId
 		if selectedVersion != "all":
 			crashes_query.filter("versionName =", selectedVersion)
+			cacheId += selectedVersion
+		cacheId += "_counter"
 		crashes_query.order("-crashTime")
-		total_results = crashes_query.count(1000000)
+		total_results = memcache.get(cacheId)
+		if total_results is None:
+			total_results = Cnt.get(cacheId)
+			if total_results is None:
+				total_results = crashes_query.count(1000000)
+				memcache.set(cacheId, total_results, 86400)
 		last_page = max((total_results - 1) // 20, 0)
 
 		if page > last_page:
@@ -214,8 +238,10 @@ class ReportCrashes(webapp.RequestHandler):
 				'page': page,
 				'last_page': last_page,
 				'bug_id': bugId,
-				'total_hospital': total_hospital,
-				'sick_hospital': sick_hospital}
+				'total_hospital': 0,
+				'sick_hospital': 0}
+				#'total_hospital': total_hospital,
+				#'sick_hospital': sick_hospital}
 		path = os.path.join(os.path.dirname(__file__), 'templates/crash_list.html')
 		self.response.out.write(template.render(path, template_values))
 
