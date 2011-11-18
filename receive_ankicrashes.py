@@ -59,10 +59,15 @@ class AppVersion(db.Model):
 				logging.info("version " + version.name + " last incident: " + version.lastIncident.strftime(r"%d/%m/%Y %H:%M:%S %Z"))
 			version.crashCount = version.crashCount + 1
 			version.put()
+			cacheId = "CrashReport%s_counter" % version.name
+			memcache.set(cacheId, version.crashCount, 86400)
 		else:
 			nv = AppVersion(name = _name.strip(), lastIncident = _ts, crashCount = 1)
 			nv.put()
+			cacheId = "CrashReport%s_counter" % nv.name
+			memcache.set(cacheId, 1, 86400)
 			Cnt.incr("AppVersion_counter")
+			Lst.append('all_version_names_list', nv.name)
 
 class HospitalizedReport(db.Model):
 	crashId = db.StringProperty(required=True)
@@ -198,11 +203,15 @@ class CrashReport(db.Model):
 			bug.count += 1
 			bug.lastIncident = self.crashTime
 			bug.put()
+			cacheId = "CrashReport%d_counter" % bug.key().id()
+			memcache.set(cacheId, bug.count, 86400)
 			#memcache.set(key=self.signHash, value=bug, time=7200)
 			return bug
 		else:
 			nb = Bug(signature = self.crashSignature, signHash = self.signHash, count = 1, lastIncident = self.crashTime, linked = False, fixed = False, status = '', priority = '')
 			self.bugKey = nb.put()
+			cacheId = "CrashReport%d_counter" % nb.key().id()
+			memcache.set(cacheId, 1, 86400)
 			Cnt.incr("Bug_counter")
 			logging.debug("Created new bug: %s" % nb.key())
 			#memcache.set(key=self.signHash, value=nb, time=7200)
@@ -240,24 +249,29 @@ class HttpFeedbackReceiver(webapp.RequestHandler):
 		ts = datetime.strptime(dt[0], r'%Y-%m-%dT%H:%M:%S')
 		return pytz.utc.localize(ts)
 	def post(self):
-		post_args = self.request.arguments()
-		sentOn = None
-		_type = self.request.get('type', '')
-
-		if _type in ['feedback', 'error-feedback']:
-			if 'reportsentutc' in post_args:
-				sentOn = self.parseDateTime(self.request.get('reportsentutc', ''))
-			_groupId = long(self.request.get('groupid', ''))
-			if _groupId and sentOn:
-				fb = Feedback(groupId = _groupId,
-						sendTime = sentOn,
-						timezone = self.request.get('reportsenttz', ''),
-						type = _type,
-						message = self.request.get('message', '0'))
-				if message != 'Automatically sent':
-					fb.put()
-					Cnt.incr("Feedback_counter")
-				self.response.out.write("OK")
+		_msg = self.request.get('message', '0')
+		if _msg is not None:
+			sentOn = None
+			_type = self.request.get('type', '')
+			post_args = self.request.arguments()
+			if _type in ['feedback', 'error-feedback']:
+				if 'reportsentutc' in post_args:
+					sentOn = self.parseDateTime(self.request.get('reportsentutc', ''))
+				_groupId = long(self.request.get('groupid', ''))
+				if _groupId and sentOn:
+					if _msg != 'Automatically sent':
+						fb = Feedback(groupId = _groupId,
+								sendTime = sentOn,
+								timezone = self.request.get('reportsenttz', ''),
+								type = _type,
+								message = _msg)
+						fb.put()
+						Cnt.incr("Feedback_counter")
+					else:
+						logging.warning('Automatically sent feedback message, discarding.')
+					self.response.out.write("OK")
+				else:
+					self.error(400)
 			else:
 				self.error(400)
 		else:
@@ -338,8 +352,8 @@ class HttpCrashReceiver(webapp.RequestHandler):
 										self.response.out.write("issue:%d:%s" % (bug.issueName, bug.status))
 								logging.info("New crash: %d" % cr.key().id())
 							else:
-								logging.error("HttpCrashReceiver: duplicate crash report")
-								self.error(400)
+								logging.warning("HttpCrashReceiver: duplicate crash report")
+								self.response.out.write('duplicate')
 						else:
 							logging.error("HttpCrashReceiver: cannot extract versionName")
 							self.error(400)
