@@ -15,115 +15,41 @@
 # If not, see http://www.gnu.org/licenses/.
 # #####
 
-import os, sys, logging, re, hashlib, time
+import logging
 
 from google.appengine.ext import webapp
-from google.appengine.api import memcache
+from google.appengine.api import taskqueue
 from google.appengine.ext.webapp.util import run_wsgi_app
 
-from receive_ankicrashes import AppVersion
-from receive_ankicrashes import CrashReport
-from receive_ankicrashes import HospitalizedReport
-from receive_ankicrashes import Bug
+from FileWr import FileWr
 
 from google.appengine.api import logservice
 logservice.AUTOFLUSH_ENABLED = False
 
-class BackendTest(webapp.RequestHandler):
-	def rebuild_signatures(self):
-		#memcache.incr('backend_status')
-		#crashes_query = CrashReport.all()
-		#total_crashes = crashes_query.count(1000000)
-		#logging.info('Total crashes: %d' % total_crashes)
-		#logservice.flush()
-		#memcache.incr('backend_status')
-		#crashes_query = CrashReport.all()
-		#crashes_query.filter('adminOpsflag =', 0)
-		#unprocessed_crashes = crashes_query.count(1000000)
-		#logging.info('Unprocessed crashes: %d' % unprocessed_crashes)
-		#logservice.flush()
-		#memcache.incr('backend_status')
-		#processed_crashes = 0
-		while(True):
-			crashes_query = CrashReport.all()
-			crashes_query.filter('adminOpsflag =', 0)
-			crashes = crashes_query.fetch(100)
-			if crashes:
-				for cr in crashes:
-					signature = CrashReport.getCrashSignature(cr.report)
-					cr.crashSignature = signature
-					cr.signHash = hashlib.sha1(signature).hexdigest()
-					cr.adminOpsflag = 1
-					cr.put()
-					#processed_crashes+=1
-			else:
-				break
-			#memcache.set(key='backend_status', value=100.0*processed_crashes/unprocessed_crashes, time=900)
-			break
-
-	def rebuild_bugs(self):
-		#memcache.incr('backend_status')
-		#crashes_query = CrashReport.all()
-		#total_crashes = crashes_query.count(1000000)
-		#logging.info('Total crashes: %d' % total_crashes)
-		#logservice.flush()
-		#memcache.incr('backend_status')
-		#crashes_query = CrashReport.all()
-		#crashes_query.filter('adminOpsflag =', 0)
-		#unprocessed_crashes = crashes_query.count(1000000)
-		#logging.info('Unprocessed crashes: %d' % unprocessed_crashes)
-		#logservice.flush()
-		#memcache.incr('backend_status')
-		#processed_crashes = 0
-		while(True):
-			crashes_query = CrashReport.all()
-			crashes_query.filter('adminOpsflag =', 1)
-			crashes_query.order('signHash')
-			crashes = crashes_query.fetch(500)
-			if crashes:
-				for cr in crashes:
-					cr.adminOpsflag = 5
-					cr.linkToBug()
-#					signature = CrashReport.getCrashSignature(cr.report)
-#					cr.crashSignature = signature
-#					cr.signHash = hashlib.sha1(signature).hexdigest()
-#					cr.adminOpsflag = 1
-#					cr.put()
-					#processed_crashes+=1
-			else:
-				break
-			#memcache.set(key='backend_status', value=100.0*processed_crashes/unprocessed_crashes, time=900)
-			break
-
+class BackendExportBuilder(webapp.RequestHandler):
 	def get(self):
-		cmd = self.request.get('cmd')
-		op = self.request.get('op')
-		if cmd == 'Clear':
-			memcache.delete('backend_name')
-			memcache.delete('backend_status')
-			logging.info("Stopping backend with command: " + op)
-			logservice.flush()
-		else:
-			backend_status = memcache.get('backend_status')
-			if backend_status == None:
-				memcache.set(key='backend_status', value=0, time=900)
-				memcache.set(key='backend_name', value=op, time=900)
-				logging.info("Backend(%s) started" % op)
-				logservice.flush()
-				if op == "rebuild_signatures":
-					self.rebuild_signatures()
-				elif op == "rebuild_bugs":
-					self.rebuild_bugs()
-				memcache.delete('backend_status')
-				logging.info("Backend(%s) completed" % op)
-				logservice.flush()
-			else:
-				logging.info('Backend already running')
-				logservice.flush()
-			time.sleep(60)
-		
+		self.append2Csv('crash-export-queue', 'crash_export_csv', 'crash_export.csv', u'CrashId\tCrashTime\tTimeZone\tVersion\tAndroidVersion\tBrand\tModel\tProduct\tDevice\tAvailableMem\tGroupId\tOrigin\tBugId\n')
+		self.append2Csv('bug-export-queue', 'bug_export_csv', 'bug_export.csv', u'BugId\tSignature\n')
+		self.append2Csv('feedback-export-queue', 'feedback_export_csv', 'feedback_export.csv', u'GroupId\tType\tsendTime\tTimeZone\tMessage\n')
+	def append2Csv(self, queueName, fileName, blobName, header):
+		q = taskqueue.Queue(queueName)
+		data = ''
+		count = 0
+		tasks = q.lease_tasks(600, 1000)
+		for t in tasks:
+			payload = t.payload
+			data += payload + '\n'
+			count += 1
+		logging.info("%s: %d items, %d bytes" % (queueName, count, len(data)))
+		fw = FileWr.get_by_key_name(fileName)
+		if not fw:
+			fw = FileWr(key_name=fileName)
+			fw.append(blobName, header)
+		fw.append(blobName, data)
+		q.delete_tasks(tasks)
+	
 application = webapp.WSGIApplication(
-		[(r'^/backend/testing.*$', BackendTest)],
+		[(r'^/backend/append_export.*$', BackendExportBuilder)],
 		debug=True)
 
 if __name__ == "__main__":

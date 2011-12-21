@@ -1,6 +1,7 @@
 import hashlib, logging
 from datetime import datetime
 from mapreduce import operation as op
+from google.appengine.api import taskqueue
 from receive_ankicrashes import CrashReport
 
 def rebuild_signatures(entity):
@@ -84,4 +85,19 @@ def delete_auto_feedback(entity):
 	if entity.message == 'Automatically sent':
 		yield op.db.Delete(entity)
 		yield op.counters.Increment("deleted")
+
+def gen_crash_export(entity):
+	q = taskqueue.Queue('crash-export-queue')
+	q.add((taskqueue.Task(payload=entity.getExportLine(), method='PULL')))
+	yield op.counters.Increment("added")
+
+def gen_bug_export(entity):
+	q = taskqueue.Queue('bug-export-queue')
+	q.add((taskqueue.Task(payload=entity.getExportLine(), method='PULL')))
+	yield op.counters.Increment("added")
+
+def gen_feedback_export(entity):
+	q = taskqueue.Queue('feedback-export-queue')
+	q.add((taskqueue.Task(payload=entity.getExportLine(), method='PULL')))
+	yield op.counters.Increment("added")
 

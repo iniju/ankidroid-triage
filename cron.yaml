@@ -5,3 +5,8 @@ cron:
 - description: autoscanning for issues
   url: /cron_updater/issue_scanner
   schedule: 1st monday of sep 12:00
+- description: backend for export csv building
+  url: /backend/append_export
+  target: export-builder
+  schedule: every 1 hours
+

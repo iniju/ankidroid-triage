@@ -1,58 +1,89 @@
 mapreduce:
-- name: Rebuild Crash Signatures
+#- name: Rebuild Crash Signatures
+#  mapper:
+#    input_reader: mapreduce.input_readers.DatastoreInputReader
+#    handler: mapper.rebuild_signatures
+#    params:
+#    - name: entity_kind
+#      default: receive_ankicrashes.CrashReport
+#    - name: shard_count
+#      value: 1
+#
+#- name: Delete All Bugs
+#  mapper:
+#    input_reader: mapreduce.input_readers.DatastoreInputReader
+#    handler: mapper.delete_bugs
+#    params:
+#    - name: entity_kind
+#      default: receive_ankicrashes.Bug
+#
+#- name: Delete Duplicate Signatures
+#  mapper:
+#    input_reader: mapreduce.input_readers.DatastoreInputReader
+#    handler: mapper.delete_duplicates
+#    params:
+#    - name: entity_kind
+#      default: receive_ankicrashes.CrashReport
+
+#- name: Fix Timestamps for Crashes
+#  mapper:
+#    input_reader: mapreduce.input_readers.DatastoreInputReader
+#    handler: mapper.fix_crash_ts
+#    params:
+#    - name: entity_kind
+#      default: receive_ankicrashes.CrashReport
+
+#- name: Recalc Bug Counts
+#  mapper:
+#    input_reader: mapreduce.input_readers.DatastoreInputReader
+#    handler: mapper.recalc_counts_on_bugs
+#    params:
+#    - name: entity_kind
+#      default: receive_ankicrashes.Bug
+
+#- name: Recalc Version Counts
+#  mapper:
+#    input_reader: mapreduce.input_readers.DatastoreInputReader
+#    handler: mapper.recalc_counts_on_vesions
+#    params:
+#    - name: entity_kind
+#      default: receive_ankicrashes.AppVersion
+
+#- name: Delete Auto-Feedback
+#  mapper:
+#    input_reader: mapreduce.input_readers.DatastoreInputReader
+#    handler: mapper.delete_auto_feedback
+#    params:
+#    - name: entity_kind
+#      default: receive_ankicrashes.Feedback
+
+- name: Generate tasks for Crashes Export
   mapper:
     input_reader: mapreduce.input_readers.DatastoreInputReader
-    handler: mapper.rebuild_signatures
+    handler: mapper.gen_crash_export
     params:
     - name: entity_kind
       default: receive_ankicrashes.CrashReport
     - name: shard_count
       value: 1
 
-- name: Delete All Bugs
+- name: Generate tasks for Bugs Export
   mapper:
     input_reader: mapreduce.input_readers.DatastoreInputReader
-    handler: mapper.delete_bugs
+    handler: mapper.gen_bug_export
     params:
     - name: entity_kind
       default: receive_ankicrashes.Bug
+    - name: shard_count
+      value: 1
 
-- name: Delete Duplicate Signatures
+- name: Generate tasks for Feedbacks Export
   mapper:
     input_reader: mapreduce.input_readers.DatastoreInputReader
-    handler: mapper.delete_duplicates
-    params:
-    - name: entity_kind
-      default: receive_ankicrashes.CrashReport
-
-- name: Fix Timestamps for Crashes
-  mapper:
-    input_reader: mapreduce.input_readers.DatastoreInputReader
-    handler: mapper.fix_crash_ts
-    params:
-    - name: entity_kind
-      default: receive_ankicrashes.CrashReport
-
-- name: Recalc Bug Counts
-  mapper:
-    input_reader: mapreduce.input_readers.DatastoreInputReader
-    handler: mapper.recalc_counts_on_bugs
-    params:
-    - name: entity_kind
-      default: receive_ankicrashes.Bug
-
-- name: Recalc Version Counts
-  mapper:
-    input_reader: mapreduce.input_readers.DatastoreInputReader
-    handler: mapper.recalc_counts_on_vesions
-    params:
-    - name: entity_kind
-      default: receive_ankicrashes.AppVersion
-
-- name: Delete Auto-Feedback
-  mapper:
-    input_reader: mapreduce.input_readers.DatastoreInputReader
-    handler: mapper.delete_auto_feedback
+    handler: mapper.gen_feedback_export
     params:
     - name: entity_kind
       default: receive_ankicrashes.Feedback
+    - name: shard_count
+      value: 1
+

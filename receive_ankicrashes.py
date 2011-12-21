@@ -16,6 +16,8 @@
 # If not, see http://www.gnu.org/licenses/.
 # #####
 
+from __future__ import with_statement
+
 import logging, email, re, hashlib
 from datetime import datetime
 from datetime import timedelta
@@ -25,7 +27,7 @@ from urllib import quote
 from urllib import quote_plus
 from quopri import decodestring
 from email.header import decode_header
-from google.appengine.api import mail, memcache
+from google.appengine.api import mail, memcache, files, taskqueue
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
 from google.appengine.ext.webapp.util import run_wsgi_app
@@ -38,6 +40,7 @@ from pytz import timezone, UnknownTimeZoneError
 from BeautifulSoup import BeautifulStoneSoup
 from BeautifulSoup import BeautifulSoup
 from Cnt import Cnt
+from Lst import Lst
 
 class AppVersion(db.Model):
 	name = db.StringProperty(required=True)
@@ -60,20 +63,14 @@ class AppVersion(db.Model):
 			version.crashCount = version.crashCount + 1
 			version.put()
 			cacheId = "CrashReport%s_counter" % version.name
-			memcache.set(cacheId, version.crashCount, 86400)
+			memcache.set(cacheId, version.crashCount, 432000)
 		else:
 			nv = AppVersion(name = _name.strip(), lastIncident = _ts, crashCount = 1)
 			nv.put()
 			cacheId = "CrashReport%s_counter" % nv.name
-			memcache.set(cacheId, 1, 86400)
+			memcache.set(cacheId, 1, 432000)
 			Cnt.incr("AppVersion_counter")
 			Lst.append('all_version_names_list', nv.name)
-
-class HospitalizedReport(db.Model):
-	crashId = db.StringProperty(required=True)
-	crashBody = db.TextProperty(required=True)
-	diagnosis = db.StringProperty()
-	processed = db.BooleanProperty()
 
 class Bug(db.Model):
 	issueStatusOrder = {
@@ -156,9 +153,11 @@ class Bug(db.Model):
 		except Error, e:
 			logging.error("findIssue: Error while querying for matching issues: %s" % str(e))
 			return []
+	def getExportLine(self):
+		return u'%d\t"%s"' % (self.key().id(), re.sub('"', '""', self.signature))
+
 
 class CrashReport(db.Model):
-	crashId = db.StringProperty(required=True)
 	report = db.TextProperty(required=True, indexed=False)
 	packageName = db.StringProperty(indexed=False)
 	versionName = db.StringProperty()
@@ -183,6 +182,7 @@ class CrashReport(db.Model):
 	groupId = db.StringProperty(default='')
 	index = db.IntegerProperty(default=0, indexed=False)
 	source = db.StringProperty(default='email', indexed=False)
+	origin = db.StringProperty(default='', indexed=False)
 	archived = db.BooleanProperty(default=False)
 	def linkToBug(self, save=True):
 		#bug = memcache.get(key=self.signHash)
@@ -204,17 +204,17 @@ class CrashReport(db.Model):
 			bug.lastIncident = self.crashTime
 			bug.put()
 			cacheId = "CrashReport%d_counter" % bug.key().id()
-			memcache.set(cacheId, bug.count, 86400)
-			#memcache.set(key=self.signHash, value=bug, time=7200)
+			memcache.set(cacheId, bug.count, 432000)
 			return bug
 		else:
 			nb = Bug(signature = self.crashSignature, signHash = self.signHash, count = 1, lastIncident = self.crashTime, linked = False, fixed = False, status = '', priority = '')
 			self.bugKey = nb.put()
+			q = taskqueue.Queue('bug-export-queue')
+			q.add((taskqueue.Task(payload=nb.getExportLine(), method='PULL')))
 			cacheId = "CrashReport%d_counter" % nb.key().id()
-			memcache.set(cacheId, 1, 86400)
+			memcache.set(cacheId, 1, 432000)
 			Cnt.incr("Bug_counter")
 			logging.debug("Created new bug: %s" % nb.key())
-			#memcache.set(key=self.signHash, value=nb, time=7200)
 			if save:
 				self.put()
 				Cnt.incr("CrashReport_counter")
@@ -235,6 +235,16 @@ class CrashReport(db.Model):
 			signLine2 = re.sub(r"(\$[0-9A-Za-z_]+@)[a-f0-9]+", r"\1", m2.group(1))
 			logging.debug('Sign m2: %s' % signLine2)
 		return signLine1 + "\n" + signLine2
+	def getExportLine(self):
+		cacheId = "bugid-%s" % repr(self.bugKey)
+		bugid = memcache.get(cacheId)
+		if bugid is None:
+			bug = self.bugKey
+			bugid = bug.key().id()
+			memcache.set(cacheId, bugid, 1800)
+		line = u'%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%d' % (self.key().id(), self.crashTime.strftime(r"%Y-%m-%d %H:%M:%S UTC"), self.crashTz, self.versionName, self.androidOSVersion, self.brand, self.model, self.product, self.device, self.availableInternalMemory, self.groupId, self.origin, bugid)
+		return re.sub('[\n\r]', '', line)
+
 
 class Feedback(db.Model):
 	groupId = db.IntegerProperty(required=True)
@@ -242,6 +252,8 @@ class Feedback(db.Model):
 	timezone = db.StringProperty()
 	type = db.StringProperty(indexed=False)
 	message = db.TextProperty(indexed=False)
+	def getExportLine(self):
+		return u'%s\t%s\t%s\t%s\t"%s"' % (self.groupId, self.type, self.sendTime.strftime(r"%Y-%m-%d %H:%M:%S UTC"), self.timezone, re.sub('"', '""', self.message))
 
 class HttpFeedbackReceiver(webapp.RequestHandler):
 	def parseDateTime(self, dtstr):
@@ -266,6 +278,8 @@ class HttpFeedbackReceiver(webapp.RequestHandler):
 								type = _type,
 								message = _msg)
 						fb.put()
+						q = taskqueue.Queue('feedback-export-queue')
+						q.add((taskqueue.Task(payload=fb.getExportLine(), method='PULL')))
 						Cnt.incr("Feedback_counter")
 					else:
 						logging.warning('Automatically sent feedback message, discarding.')
@@ -281,8 +295,6 @@ class HttpCrashReceiver(webapp.RequestHandler):
 	def parseDateTime(self, dtstr):
 		dt = dtstr.split('.')
 		ts = datetime.strptime(dt[0], r'%Y-%m-%dT%H:%M:%S')
-		#micros = dt[1][:6]
-		#ts = ts + timedelta(microseconds = long(micros + "000000"[len(micros):]))
 		return pytz.utc.localize(ts)
 	def parseEssentials(self, cr, req, signature, groupId, index):
 		cr.packageName = req.get('packagename', '')
@@ -305,6 +317,7 @@ class HttpCrashReceiver(webapp.RequestHandler):
 		cr.groupId = groupId
 		cr.index = index
 		cr.source = "http"
+		cr.origin = req.get('origin', '')
 	def post(self):
 		post_args = self.request.arguments()
 		_type = self.request.get('type', '')
@@ -329,10 +342,7 @@ class HttpCrashReceiver(webapp.RequestHandler):
 					if signature != "\n" and sendTime and sendtz:
 						tz = timezone(sendtz)
 						logging.debug("ts: " + sendTime.astimezone(tz).strftime("%a %b %d %H:%M:%S %%s %Y"))
-						_crashId = 'HTTP Bug Report on %s num: %03d' % (sendTime.astimezone(tz).strftime("%a %b %d %H:%M:%S %%s %Y"), _index)
-						_crashId = _crashId % sendtz
-						logging.debug("HTTP report: " + _crashId)
-						cr = CrashReport(crashId = _crashId, report = body)
+						cr = CrashReport(report = body)
 						self.parseEssentials(cr, self.request, signature, _groupId, _index)
 						if cr.versionName != '':
 							# Check for duplicates
@@ -342,10 +352,14 @@ class HttpCrashReceiver(webapp.RequestHandler):
 							if dupl_query.count(1) == 0:
 								bug = cr.linkToBug(True)
 								AppVersion.insert(cr.versionName, cr.crashTime)
+								q = taskqueue.Queue('crash-export-queue')
+								q.add((taskqueue.Task(payload=cr.getExportLine(), method='PULL')))
 								if bug.count == 1:
+									logging.info("New bug: %d" % bug.key().id())
 									self.response.out.write("new")
 								else:
 									issueName = bug.issueName
+									logging.info("Old bug: %d, count: %d" % (bug.key().id(), bug.count))
 									if issueName is None:
 										self.response.out.write("known")
 									else:

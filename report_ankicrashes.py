@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU General Public License along with ankidroid-triage.
 # If not, see http://www.gnu.org/licenses/.
 # #####
-
 import os, logging, re
 from operator import attrgetter
 os.environ['DJANGO_SETTINGS_MODULE'] = 'settings'
@@ -27,17 +26,20 @@ settings._target = None
 
 from google.appengine.ext import webapp
 from google.appengine.api import memcache
+from google.appengine.ext import db
+from google.appengine.ext import blobstore
 from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.ext.webapp import template
 from google.appengine.api.urlfetch import fetch
 from google.appengine.api.urlfetch import Error
+from google.appengine.ext.webapp import blobstore_handlers
 
 from receive_ankicrashes import AppVersion
 from receive_ankicrashes import CrashReport
-from receive_ankicrashes import HospitalizedReport
 from receive_ankicrashes import Bug
 from Cnt import Cnt
 from Lst import Lst
+from FileWr import FileWr
 
 webapp.template.register_template_library('templatetags.basic_math')
 
@@ -91,8 +93,8 @@ class ViewBug(webapp.RequestHandler):
 
 class ViewCrash(webapp.RequestHandler):
 	def get(self):
-		crashId = self.request.get('crash_id')
-		crash = CrashReport.get_by_id(long(crashId))
+		crId = self.request.get('crash_id')
+		crash = CrashReport.get_by_id(long(crId))
 		template_values = {'cr': crash}
 		path = os.path.join(os.path.dirname(__file__), 'templates/crash_view.html')
 		self.response.out.write(template.render(path, template_values))
@@ -157,6 +159,18 @@ class ReportBugs(webapp.RequestHandler):
 		self.response.out.write(template.render(path, template_values))
 
 
+class CrashExportServer(blobstore_handlers.BlobstoreDownloadHandler):
+	def get(self):
+		fw = FileWr.get_by_key_name("crash_export_csv")
+		self.send_blob(fw.bkey)
+class BugExportServer(blobstore_handlers.BlobstoreDownloadHandler):
+	def get(self):
+		fw = FileWr.get_by_key_name("bug_export_csv")
+		self.send_blob(fw.bkey)
+class FeedbackExportServer(blobstore_handlers.BlobstoreDownloadHandler):
+	def get(self):
+		fw = FileWr.get_by_key_name("feedback_export_csv")
+		self.send_blob(fw.bkey)
 
 class ExportCrashes(webapp.RequestHandler):
 	def get(self):
@@ -177,7 +191,7 @@ class ExportCrashes(webapp.RequestHandler):
 			total_results = Cnt.get(cacheId)
 			if total_results is None:
 				total_results = crashes_query.count(1000000)
-				memcache.set(cacheId, total_results, 86400)
+				memcache.set(cacheId, total_results, 432000)
 
 		crashes = crashes_query.fetch(1000000)
 		template_values = {'crashes_list': crashes,
@@ -189,18 +203,7 @@ class ExportCrashes(webapp.RequestHandler):
 
 class ReportCrashes(webapp.RequestHandler):
 	def get(self):
-		#versions_query = AppVersion.all()
-		#versions_query.order("-activeFrom")
-		#versions_objs = versions_query.fetch(2000)
-		#versions = [v.name for v in versions_objs]
-		#versions.insert(0, "all")
 		versions = Lst.get('all_version_names_list')
-
-		#hospital_query = HospitalizedReport.all()
-		#total_hospital = hospital_query.count()
-		#hospital_query = HospitalizedReport.all()
-		#hospital_query.filter('processed =', False)
-		#sick_hospital = hospital_query.count()
 
 		crashes_query = CrashReport.all()
 		bugId = self.request.get('bug_id')
@@ -224,7 +227,7 @@ class ReportCrashes(webapp.RequestHandler):
 			total_results = Cnt.get(cacheId)
 			if total_results is None:
 				total_results = crashes_query.count(1000000)
-				memcache.set(cacheId, total_results, 86400)
+				memcache.set(cacheId, total_results, 432000)
 		last_page = max((total_results - 1) // 20, 0)
 
 		if page > last_page:
@@ -237,60 +240,8 @@ class ReportCrashes(webapp.RequestHandler):
 				'page_size': 20,
 				'page': page,
 				'last_page': last_page,
-				'bug_id': bugId,
-				'total_hospital': 0,
-				'sick_hospital': 0}
-				#'total_hospital': total_hospital,
-				#'sick_hospital': sick_hospital}
+				'bug_id': bugId}
 		path = os.path.join(os.path.dirname(__file__), 'templates/crash_list.html')
-		self.response.out.write(template.render(path, template_values))
-
-class ViewHospital(webapp.RequestHandler):
-	def post(self):
-		post_args = self.request.arguments()
-		page = self.request.get('page', 0)
-		if "remove_processed" in post_args:
-			# Remove successfully processed hospitalized reports
-			hospital_query = HospitalizedReport.all()
-			hospital_query.filter('processed =', True)
-			hr_list = hospital_query.fetch(1000000)
-			for hr in hr_list:
-				if not hr.diagnosis:
-					logging.info("Deleting hospitalized report: " + str(hr.key().id()))
-					hr.delete()
-		elif "fix_report" in post_args:
-			attemped_fix_id = self.request.get('crash_id', 0)
-			hr = HospitalizedReport.get_by_id(long(attemped_fix_id))
-			if hr and not hr.processed:
-				cr = CrashReport(crashId = hr.crashId, report = hr.crashBody)
-				hr.diagnosis = cr.parseReport()
-				if not hr.diagnosis:
-					hr.processed = True
-					cr.put()
-					cr.linkToBug()
-				hr.put()
-		self.redirect(r'hospital?page=' + page)
-
-	def get(self):
-		hospital_query = HospitalizedReport.all()
-		hospitalized = hospital_query.count()
-		page = int(self.request.get('page', 0))
-		attemped_fix_id = int(self.request.get('attemped_fix_id', 0))
-		fix_result = self.request.get('fix_result', 0)
-
-		hospitalized = []
-		total_results = hospital_query.count(1000000)
-		last_page = max((total_results - 1) // 20, 0)
-		if page > last_page:
-			page = last_page
-		hospitalized = hospital_query.fetch(20, int(page)*20)
-		template_values = {'hospitalized_list': hospitalized,
-				'total_results': total_results,
-				'page_size': 20,
-				'page': page,
-				'attemped_fix_id': attemped_fix_id,
-				'fix_result': fix_result}
-		path = os.path.join(os.path.dirname(__file__), 'templates/hospital.html')
 		self.response.out.write(template.render(path, template_values))
 
 application = webapp.WSGIApplication(
@@ -299,8 +250,9 @@ application = webapp.WSGIApplication(
 			(r'^/report_bugs/?.*', ReportBugs),
 			(r'^/view_crash/?.*', ViewCrash),
 			(r'^/view_bug/?.*', ViewBug),
-			(r'^/export_bug_csv/?.*', ExportCrashes),
-			(r'^/hospital/?.*', ViewHospital)],
+			(r'^/export_crash.csv/?.*', CrashExportServer),
+			(r'^/export_bug.csv/?.*', BugExportServer),
+			(r'^/export_feedback.csv/?.*', FeedbackExportServer)],
 		debug=True)
 
 def main():

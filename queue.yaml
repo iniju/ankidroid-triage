@@ -1,4 +1,10 @@
 queue:
+- name: crash-export-queue
+  mode: pull
+- name: bug-export-queue
+  mode: pull
+- name: feedback-export-queue
+  mode: pull
 - name: admin-ops-queue
   rate: 1/m
   bucket_size: 1

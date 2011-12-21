@@ -30,6 +30,12 @@
 				<a href="/report_crashes">Crashes Report</a>
 				&nbsp;
 				<a href="/report_bugs">Bugs Report</a>
+				&nbsp;
+				<a href="/export_crash.csv">Crashes Export</a>
+				&nbsp;
+				<a href="/export_bug.csv">Bugs Export</a>
+				&nbsp;
+				<a href="/export_feedback.csv">Feedbacks Export</a>
 			</div>
 		</div>
 		<br/>
@@ -47,7 +53,6 @@
 			</thead>
 			<tbody>
 				<tr><th class="field_name">ID</th><td>{{ cr.key.id }}</td></tr>
-				<tr><th class="field_name">Subject</th><td>{{ cr.crashId }}</td></tr>
 				<tr><th class="field_name">Report</th><td><div class="scrollable">{{ cr.report|safe }}</div></td></tr>
 				<tr><th class="field_name">Package Name</th><td>{{ cr.packageName }}</td></tr>
 				<tr><th class="field_name">Package Version</th><td>{{ cr.versionName }}</td></tr>

@@ -34,15 +34,17 @@
 			{% else %}
 				<a href="/report_bugs">Bugs Report</a>
 			{% endif %}
+				&nbsp;
+				<a href="/export_crash.csv">Crashes Export</a>
+				&nbsp;
+				<a href="/export_bug.csv">Bugs Export</a>
+				&nbsp;
+				<a href="/export_feedback.csv">Feedbacks Export</a>
 			</div>
 		</div>
 		<br/>
 		<br/>
 		<br>
-		{% if total_hospital|gt:0 %}
-		<div id="hospital">There {{ total_hospital|pluralize:"is,are" }} currently <b>{{ total_hospital }}</b> crash report{{ total_hospital|pluralize }} (<b>{{ sick_hospital }} awaiting treatment</b>) in <a href="/hospital">hospital</a></div>
-		<br>
-		{% endif %}
 
 		<form name="filter_parameters" method="get" action="report_crashes">
 			{% if bug_id %}
@@ -91,7 +93,7 @@
 		<table>
 			<thead>
 				<tr>
-					<th>Crash Title</th>
+					<th>Crash Id</th>
 					<th title="Send Time">Crash Time</th>
 					<th title="Package Name">Version</th>
 					<th title="OS Id">Android</th>
@@ -100,13 +102,14 @@
 					<th>Product</th>
 					<th>Device</th>
 					<th>Available Memory</th>
+					<th>Origin</th>
 					<th title="# of instances">Bug</th>
 				</tr>
 			</thead>
 			<tbody>
 				{% for cr in crashes_list %}
 				<tr class="{% if forloop.counter|divisibleby:2 %}even{% else %}odd{% endif %}">
-					<td><a href="/view_crash?crash_id={{ cr.key.id }}">{{ cr.crashId }}</a></td>
+					<td><a href="/view_crash?crash_id={{ cr.key.id }}">{{ cr.key.id }}</a></td>
 					<td title="Send on {{ cr.sendTime|date:"Y-m-d H:i:s T" }}">{{ cr.crashTime|date:"Y-m-d H:i:s T" }}</td>
 					<td title="Package: {{ cr.packageName }}">{{ cr.versionName }}</td>
 					<td title="Firmware: {{ cr.androidOSId }}">{{ cr.androidOSVersion }}</td>
@@ -115,6 +118,7 @@
 					<td>{{ cr.product }}</td>
 					<td>{{ cr.device }}</td>
 					<td>{{ cr.availableInternalMemory }}</td>
+					<td>{{ cr.origin }}</td>
 					<td><a href="/view_bug?bug_id={{ cr.bugKey.key.id }}" title="count = {{ cr.bugKey.count }}">{{ cr.bugKey.key.id }}</a></td>
 				</tr>
 				{% endfor %}
