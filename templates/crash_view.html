@@ -53,7 +53,7 @@
 			</thead>
 			<tbody>
 				<tr><th class="field_name">ID</th><td>{{ cr.key.id }}</td></tr>
-				<tr><th class="field_name">Report</th><td><div class="scrollable">{{ cr.report|safe }}</div></td></tr>
+				<tr><th class="field_name">Report</th><td><div class="scrollable">{{ cr.report|linebreaksbr }}</div></td></tr>
 				<tr><th class="field_name">Package Name</th><td>{{ cr.packageName }}</td></tr>
 				<tr><th class="field_name">Package Version</th><td>{{ cr.versionName }}</td></tr>
 				<tr><th class="field_name">Signature</th><td>{{ cr.crashSignature }}</td></tr>
@@ -66,6 +66,7 @@
 				<tr><th class="field_name">Android Firmware</th><td>{{ cr.androidOSId }}</td></tr>
 				<tr><th class="field_name">Android Version</th><td>{{ cr.androidOSVersion }}</td></tr>
 				<tr><th class="field_name">Available Memory</th><td>{{ cr.availableInternalMemory }}</td></tr>
+				<tr><th class="field_name">Locale</th><td>{{ cr.locale }}</td></tr>
 				<tr><th>Linked to Bug</th><td><a href="/view_bug?bug_id={{ cr.bugKey.key.id }}">{{ cr.bugKey.key.id }}</a></td></tr>
 			</tbody>
 		</table>

@@ -102,6 +102,7 @@
 					<th>Product</th>
 					<th>Device</th>
 					<th>Available Memory</th>
+					<th>Locale</th>
 					<th>Origin</th>
 					<th title="# of instances">Bug</th>
 				</tr>
@@ -118,6 +119,7 @@
 					<td>{{ cr.product }}</td>
 					<td>{{ cr.device }}</td>
 					<td>{{ cr.availableInternalMemory }}</td>
+					<td>{{ cr.locale }}</td>
 					<td>{{ cr.origin }}</td>
 					<td><a href="/view_bug?bug_id={{ cr.bugKey.key.id }}" title="count = {{ cr.bugKey.count }}">{{ cr.bugKey.key.id }}</a></td>
 				</tr>

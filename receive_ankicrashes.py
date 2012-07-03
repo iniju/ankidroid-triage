@@ -176,6 +176,7 @@ class CrashReport(db.Model):
 	androidOSVersion = db.StringProperty(indexed=False)
 	availableInternalMemory = db.IntegerProperty(indexed=False)
 	totalInternalMemory = db.IntegerProperty(indexed=False)
+	locale = db.StringProperty(indexed=False)
 	bugKey = db.ReferenceProperty(Bug)
 	entityVersion = db.IntegerProperty(default=2)
 	adminOpsflag = db.IntegerProperty(default=6)
@@ -314,6 +315,7 @@ class HttpCrashReceiver(webapp.RequestHandler):
 		cr.androidOSVersion = req.get('androidversion', '')
 		cr.availableInternalMemory = long(req.get('availableinternalmemory', '0'))
 		cr.totalInternalMemory = long(req.get('totalinternalmemory', '0'))
+		cr.locale = req.get('locale', '')
 		cr.groupId = groupId
 		cr.index = index
 		cr.source = "http"
