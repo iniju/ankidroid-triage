@@ -108,52 +108,41 @@ class ReportBugs(webapp.RequestHandler):
 		#versions = [v.name for v in versions_objs]
 		#versions.insert(0, "all")
 		versions = Lst.get('all_version_names_list')
-		selectedVersion = self.request.get('filter_version', "all")
+		selectedVersion = self.request.get('filter_version', versions[0])
 
 		bugs = []
 		page = int(self.request.get('page', 0))
-		if selectedVersion != "all":
-			crashes = []
-			bugs_map = {}
-			crashes_query = CrashReport.all()
-			crashes_query.filter("versionName =", selectedVersion)
-			crashes = crashes_query.fetch(1000000)
-			for cr in crashes:
-				if cr.bugKey.key().id() in bugs_map:
-					bugs_map[cr.bugKey.key().id()].count += 1
-					if bugs_map[cr.bugKey.key().id()].lastIncident < cr.crashTime:
-						bugs_map[cr.bugKey.key().id()].lastIncident = cr.crashTime
-				else:
-					bug = cr.bugKey
-					bug.count = 1
-					bug.lastIncident = cr.crashTime
-					bugs_map[cr.bugKey.key().id()] = bug
-			unsorted_bugs = bugs_map.values()
-			bugs = sorted(unsorted_bugs, key=attrgetter('count'), reverse=True)
-			total_results = len(bugs)
-			last_page = max((total_results - 1) // 20, 0)
-			if page > last_page:
-				page = last_page
-			# trim results to a single page
-			bugs[(page+1)*20:] = []
-			bugs[0:page*20] = []
-		else:
-			bugs_query = Bug.all()
-			bugs_query.order("-count")
-			total_results = bugs_query.count(1000000)
-			#total_results = Cnt.get("Bug_counter")
-			last_page = max((total_results - 1) // 20, 0)
-			if page > last_page:
-				page = last_page
-			bugs = bugs_query.fetch(20, int(page)*20)
+		#if selectedVersion != "all":
+		crashes = []
+		bugs_map = {}
+		crashes_query = CrashReport.all()
+		crashes_query.filter("versionName =", selectedVersion)
+		crashes = crashes_query.fetch(1000000)
+		for cr in crashes:
+			if cr.bugKey.key().id() in bugs_map:
+				bugs_map[cr.bugKey.key().id()].count += 1
+				if bugs_map[cr.bugKey.key().id()].lastIncident < cr.crashTime:
+					bugs_map[cr.bugKey.key().id()].lastIncident = cr.crashTime
+			else:
+				bug = cr.bugKey
+				bug.count = 1
+				bug.lastIncident = cr.crashTime
+				bugs_map[cr.bugKey.key().id()] = bug
+		unsorted_bugs = bugs_map.values()
+		bugs = sorted(unsorted_bugs, key=attrgetter('count'), reverse=True)
+		# trim results to a single page
+		bugs[(page+1)*20:] = []
+		bugs[0:page*20] = []
+		#else:
+		#	bugs_query = Bug.all()
+		#	bugs_query.order("-count")
+		#	bugs = bugs_query.fetch(20, int(page)*20)
 
 		template_values = {'bugs_list': bugs,
 				'versions_list': versions,
 				'filter_version': selectedVersion,
-				'total_results': total_results,
 				'page_size': 20,
-				'page': page,
-				'last_page': last_page}
+				'page': page}
 
 		path = os.path.join(os.path.dirname(__file__), 'templates/bug_list.html')
 		self.response.out.write(template.render(path, template_values))
@@ -172,74 +161,38 @@ class FeedbackExportServer(blobstore_handlers.BlobstoreDownloadHandler):
 		fw = FileWr.get_by_key_name("feedback_export_csv")
 		self.send_blob(fw.bkey)
 
-class ExportCrashes(webapp.RequestHandler):
-	def get(self):
-		crashes_query = CrashReport.all()
-		bugId = self.request.get('bug_id')
-
-		cacheId = "CrashReport"
-		crashes_query.order("-crashTime")
-		crashes = []
-		if bugId:
-			bug = Bug.get_by_id(long(bugId))
-			crashes_query.filter("bugKey =", bug)
-			cacheId += bugId
-		cacheId += "_counter"
-		crashes_query.order("-crashTime")
-		total_results = memcache.get(cacheId)
-		if total_results is None:
-			total_results = Cnt.get(cacheId)
-			if total_results is None:
-				total_results = crashes_query.count(1000000)
-				memcache.set(cacheId, total_results, 432000)
-
-		crashes = crashes_query.fetch(1000000)
-		template_values = {'crashes_list': crashes,
-				'total_results': total_results,
-				'bug_id': bugId}
-		path = os.path.join(os.path.dirname(__file__), 'templates/crash_list.csv')
-		self.response.out.write(template.render(path, template_values))
-
-
 class ReportCrashes(webapp.RequestHandler):
 	def get(self):
 		versions = Lst.get('all_version_names_list')
-
-		crashes_query = CrashReport.all()
-		bugId = self.request.get('bug_id')
-		page = int(self.request.get('page', 0))
-		selectedVersion = self.request.get('filter_version', "all")
-		logging.info("version: " + selectedVersion)
+		selectedVersion = self.request.get('filter_version', '')
 
 		crashes = []
+		crashes_query = CrashReport.all()
+		bugId = self.request.get('bug_id')
+		if not bugId and not selectedVersion:
+			selectedVersion = versions[0]
+
 		cacheId = "CrashReport"
+		if selectedVersion:
+			crashes_query.filter("versionName =", selectedVersion)
 		if bugId:
 			bug = Bug.get_by_id(long(bugId))
 			crashes_query.filter("bugKey =", bug)
 			cacheId += bugId
-		if selectedVersion != "all":
-			crashes_query.filter("versionName =", selectedVersion)
-			cacheId += selectedVersion
+			if not selectedVersion:
+				versions.insert(0, '')
+		cacheId += selectedVersion
 		cacheId += "_counter"
 		crashes_query.order("-crashTime")
-		total_results = memcache.get(cacheId)
-		if total_results is None:
-			total_results = Cnt.get(cacheId)
-			if total_results is None:
-				total_results = crashes_query.count(1000000)
-				memcache.set(cacheId, total_results, 432000)
-		last_page = max((total_results - 1) // 20, 0)
 
-		if page > last_page:
-			page = last_page
+		logging.info("version: " + selectedVersion)
+		page = int(self.request.get('page', 0))
 		crashes = crashes_query.fetch(20, int(page)*20)
 		template_values = {'crashes_list': crashes,
 				'versions_list': versions,
 				'filter_version': selectedVersion,
-				'total_results': total_results,
 				'page_size': 20,
 				'page': page,
-				'last_page': last_page,
 				'bug_id': bugId}
 		path = os.path.join(os.path.dirname(__file__), 'templates/crash_list.html')
 		self.response.out.write(template.render(path, template_values))

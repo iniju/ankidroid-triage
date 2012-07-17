@@ -27,10 +27,10 @@
 		<div class="title_line">
 			<div class="title float_left">Crashes report</div>
 			<div class="float_right">
-				Crashes Report
+				<a href="/report_crashes">Crashes Report</a>
 				&nbsp;
 			{% if filter_version %}
-				<a href="/report_bugs?filter_version={{ filter_version }}">Bugs Report</a>
+			<a href="/report_bugs?filter_version={{ filter_version }}">Bugs Report[{{ filter_version }}]</a>
 			{% else %}
 				<a href="/report_bugs">Bugs Report</a>
 			{% endif %}
@@ -61,7 +61,6 @@
 		
 		<div class="above_table">
 			<div class="float_left">
-			{% if last_page|gt:0 %}
 				{% if page|gt:0 %}
 					{% if bug_id %}
 				<a href="/report_crashes?filter_version={{ filter_version }}&amp;bug_id={{ bug_id }}&page=0">&lt;&lt; First {{ page_size }}</a>
@@ -74,20 +73,12 @@
 					{% endif %}
 				&nbsp;
 				{% endif %}
-				{% if page|lt:last_page %}
-					{% if bug_id %}
+				{% if bug_id %}
 				<a href="/report_crashes?filter_version={{ filter_version }}&amp;bug_id={{ bug_id }}&page={{ page|add:1 }}">Next {{ page_size }} &gt;</a>
-				&nbsp;
-				<a href="/report_crashes?filter_version={{ filter_version }}&amp;bug_id={{ bug_id }}&page={{ last_page }}">Last {{ total_results|sub:1|mod:page_size|add:1 }} &gt;&gt;</a>
-					{% else %}
+				{% else %}
 				<a href="/report_crashes?filter_version={{ filter_version }}&amp;page={{ page|add:1 }}">Next {{ page_size }} &gt;</a>
-				&nbsp;
-				<a href="/report_crashes?filter_version={{ filter_version }}&amp;page={{ last_page }}">Last {{ total_results|sub:1|mod:page_size|add:1 }} &gt;&gt;</a>
-					{% endif %}
 				{% endif %}
-			{% endif %}
 			</div>
-			<div class="float_right">Total found: {{ total_results }}</div>
 		</div>
 
 		<table>

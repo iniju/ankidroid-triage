@@ -65,12 +65,18 @@ class AppVersion(db.Model):
 			cacheId = "CrashReport%s_counter" % version.name
 			memcache.set(cacheId, version.crashCount, 432000)
 		else:
+			def vcmp(x, y):
+				gx = re.match(r'^([0-9.]+)((?:alpha|beta)?)((?:\d+)?)((?:\D.*)?)$', x).groups()
+				gy = re.match(r'^([0-9.]+)((?:alpha|beta)?)((?:\d+)?)((?:\D.*)?)$', y).groups()
+				revx = 0 if len(gx[2]) == 0 else int(gx[2])
+				revy = 0 if len(gy[2]) == 0 else int(gy[2])
+				return -cmp("%s%sz%04d%s" % (gx[0], gx[1], revx, gx[3]), "%s%sz%04d%s" % (gy[0], gy[1], revy, gy[3]))
 			nv = AppVersion(name = _name.strip(), lastIncident = _ts, crashCount = 1)
 			nv.put()
 			cacheId = "CrashReport%s_counter" % nv.name
 			memcache.set(cacheId, 1, 432000)
 			Cnt.incr("AppVersion_counter")
-			Lst.append('all_version_names_list', nv.name)
+			Lst.append('all_version_names_list', nv.name, vcmp)
 
 class Bug(db.Model):
 	issueStatusOrder = {
